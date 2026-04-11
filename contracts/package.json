@@ -1,0 +1,26 @@
+{
+  "name": "aiwatt-contracts",
+  "version": "0.1.0",
+  "description": "AI WATT smart contracts — XDC Network",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "node": "hardhat node",
+    "deploy:apothem": "hardhat run scripts/deploy-proxy.ts --network apothem",
+    "deploy:mainnet": "hardhat run scripts/deploy-proxy.ts --network xdc",
+    "verify:apothem": "hardhat run scripts/verify.ts --network apothem",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.0.0",
+    "hardhat": "^2.22.0",
+    "dotenv": "^16.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0"
+  }
+}

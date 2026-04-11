@@ -1,0 +1,38 @@
+# Secrets — never commit
+.env
+*.key
+*.pem
+
+# Claude Code — keep local, do not commit
+.claude/
+CLAUDE.md
+PLAN.md
+ARCHITECTURE.md
+
+# Go
+backend/vendor/
+*.test
+*.out
+
+# Hardhat
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/.env
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

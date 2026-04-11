@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: aiwatt-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: aiwatt
+      MYSQL_USER: aiwatt
+      MYSQL_PASSWORD: aiwatt
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "aiwatt", "-paiwatt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aiwatt-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aiwatt-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://aiwatt:aiwatt@mysql:3306/aiwatt?parseTime=true
+      REDIS_URL: redis://redis:6379/0
+
+volumes:
+  mysql_data:
+  redis_data:

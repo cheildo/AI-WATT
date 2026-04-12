@@ -1,29 +1,89 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
 
 /**
- * deploy-proxy.ts — UUPS proxy deployment script.
+ * deploy-proxy.ts — Phase 1 deployment: WattUSD + MintEngine
  *
  * Usage:
  *   npx hardhat run scripts/deploy-proxy.ts --network apothem
+ *   npx hardhat run scripts/deploy-proxy.ts --network localhost
  *
- * This script is a template. Uncomment and extend for each contract.
- * Always run hardhat-upgrades safety checks before deployment.
+ * Required env vars:
+ *   DEPLOYER_PRIVATE_KEY  — funded with testnet XDC
+ *   TREASURY_ADDRESS      — address that receives protocol fees
+ *   USDC_ADDRESS          — USDC token address on target network
+ *   USDT_ADDRESS          — USDT token address on target network (optional)
  */
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying from:", deployer.address);
-  console.log("Network:", (await ethers.provider.getNetwork()).name);
+  const chainId = (await ethers.provider.getNetwork()).chainId;
 
-  // Example: deploy WattUSD (UUPS upgradeable)
-  // const WattUSD = await ethers.getContractFactory("WattUSD");
-  // const proxy = await upgrades.deployProxy(WattUSD, [deployer.address], {
-  //   kind: "uups",
-  //   initializer: "initialize",
-  // });
-  // await proxy.waitForDeployment();
-  // console.log("WattUSD proxy deployed to:", await proxy.getAddress());
+  console.log("=== AI WATT — Phase 1 Deploy ===");
+  console.log(`Network : ${network.name} (chainId: ${chainId})`);
+  console.log(`Deployer: ${deployer.address}`);
+  console.log(`Balance : ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} XDC\n`);
 
-  console.log("No contracts to deploy yet — add them in deploy-proxy.ts");
+  const treasuryAddress = process.env.TREASURY_ADDRESS;
+  const usdcAddress = process.env.USDC_ADDRESS;
+
+  if (!treasuryAddress) throw new Error("TREASURY_ADDRESS env var not set");
+  if (!usdcAddress) throw new Error("USDC_ADDRESS env var not set");
+
+  // ── 1. Deploy WattUSD (UUPS proxy) ───────────────────────────────────────
+  console.log("Deploying WattUSD...");
+  const WattUSDFactory = await ethers.getContractFactory("WattUSD");
+  const wattUSD = await upgrades.deployProxy(WattUSDFactory, [deployer.address], {
+    kind: "uups",
+    initializer: "initialize",
+  });
+  await wattUSD.waitForDeployment();
+  const wattUSDAddress = await wattUSD.getAddress();
+  console.log(`✓ WattUSD proxy    : ${wattUSDAddress}`);
+  console.log(`  Implementation   : ${await upgrades.erc1967.getImplementationAddress(wattUSDAddress)}\n`);
+
+  // ── 2. Deploy MintEngine (UUPS proxy) ────────────────────────────────────
+  console.log("Deploying MintEngine...");
+  const MintEngineFactory = await ethers.getContractFactory("MintEngine");
+  const mintEngine = await upgrades.deployProxy(
+    MintEngineFactory,
+    [deployer.address, wattUSDAddress, treasuryAddress],
+    { kind: "uups", initializer: "initialize" }
+  );
+  await mintEngine.waitForDeployment();
+  const mintEngineAddress = await mintEngine.getAddress();
+  console.log(`✓ MintEngine proxy : ${mintEngineAddress}`);
+  console.log(`  Implementation   : ${await upgrades.erc1967.getImplementationAddress(mintEngineAddress)}\n`);
+
+  // ── 3. Wire: grant MINTER_ROLE on WattUSD to MintEngine ──────────────────
+  console.log("Granting MINTER_ROLE on WattUSD to MintEngine...");
+  const MINTER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("MINTER_ROLE"));
+  const tx1 = await (wattUSD as any).grantRole(MINTER_ROLE, mintEngineAddress);
+  await tx1.wait();
+  console.log(`✓ MINTER_ROLE granted (tx: ${tx1.hash})\n`);
+
+  // ── 4. Accept USDC in MintEngine ─────────────────────────────────────────
+  console.log(`Accepting USDC (${usdcAddress}) in MintEngine...`);
+  const tx2 = await (mintEngine as any).setAcceptedStablecoin(usdcAddress, true);
+  await tx2.wait();
+  console.log(`✓ USDC accepted (tx: ${tx2.hash})`);
+
+  // Accept USDT if provided
+  const usdtAddress = process.env.USDT_ADDRESS;
+  if (usdtAddress) {
+    console.log(`Accepting USDT (${usdtAddress}) in MintEngine...`);
+    const tx3 = await (mintEngine as any).setAcceptedStablecoin(usdtAddress, true);
+    await tx3.wait();
+    console.log(`✓ USDT accepted (tx: ${tx3.hash})`);
+  }
+
+  // ── Summary ───────────────────────────────────────────────────────────────
+  console.log("\n=== Deployment complete ===");
+  console.log(`WattUSD  : ${wattUSDAddress}`);
+  console.log(`MintEngine: ${mintEngineAddress}`);
+  console.log(`Treasury : ${treasuryAddress}`);
+  console.log("\nNext steps:");
+  console.log("  1. Transfer DEFAULT_ADMIN_ROLE to a multisig");
+  console.log("  2. Run verify.ts to verify on the block explorer");
+  console.log("  3. Update backend .env with contract addresses");
 }
 
 main().catch((err) => {

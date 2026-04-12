@@ -8,6 +8,8 @@
     "test": "hardhat test",
     "coverage": "hardhat coverage",
     "node": "hardhat node",
+    "deploy:mocks:apothem": "hardhat run scripts/deploy-mocks.ts --network apothem",
+    "deploy:mocks:local": "hardhat run scripts/deploy-mocks.ts --network localhost",
     "deploy:apothem": "hardhat run scripts/deploy-proxy.ts --network apothem",
     "deploy:mainnet": "hardhat run scripts/deploy-proxy.ts --network xdc",
     "verify:apothem": "hardhat run scripts/verify.ts --network apothem",

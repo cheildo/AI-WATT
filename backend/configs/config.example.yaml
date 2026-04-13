@@ -14,7 +14,7 @@ redis:
 
 xdc:
   rpc_url: "https://erpc.apothem.network"  # Apothem testnet
-  # rpc_url: "https://erpc.xinfin.network"  # Mainnet
+  # rpc_url: "https://rpc.xdcrpc.com"  # Mainnet
 
 jwt:
   secret: "change-me"

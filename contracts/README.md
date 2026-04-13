@@ -71,7 +71,7 @@ scripts/           # deploy-proxy.ts, upgrade.ts, verify.ts
 |---|---|---|
 | Hardhat local | 31337 | http://127.0.0.1:8545 |
 | XDC Apothem (testnet) | 51 | https://erpc.apothem.network |
-| XDC Mainnet | 50 | https://erpc.xinfin.network |
+| XDC Mainnet | 50 | https://rpc.xdcrpc.com |
 
 Testnet XDC faucet: https://faucet.apothem.network
 

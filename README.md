@@ -53,4 +53,4 @@ go run ./cmd/api              # starts API on :8080
 | Network | Chain ID | RPC |
 |---|---|---|
 | XDC Apothem (testnet) | 51 | https://erpc.apothem.network |
-| XDC Mainnet | 50 | https://erpc.xinfin.network |
+| XDC Mainnet | 50 | https://rpc.xdcrpc.com |

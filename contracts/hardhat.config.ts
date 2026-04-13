@@ -39,7 +39,7 @@ const config: HardhatUserConfig = {
 
     // XDC Mainnet — chainId: 50
     xdc: {
-      url: "https://erpc.xinfin.network",
+      url: "https://rpc.xdcrpc.com",
       chainId: 50,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
       gasPrice: "auto",

@@ -6,6 +6,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY ?? "";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -50,24 +51,22 @@ const config: HardhatUserConfig = {
   // apiKey must be a flat string (Etherscan v2 format); "placeholder" satisfies
   // hardhat-verify's non-empty check without being used for auth.
   etherscan: {
-    apiKey: "placeholder",
+    apiKey: ETHERSCAN_API_KEY,
     customChains: [
       {
         network: "apothem",
         chainId: 51,
         urls: {
-          // BlockScout instance for XDC Apothem testnet
-          apiURL: "https://explorer.apothem.network/api",
-          browserURL: "https://explorer.apothem.network",
+          apiURL: "https://testnet.xdcscan.com/api",
+          browserURL: "https://testnet.xdcscan.com",
         },
       },
       {
         network: "xdc",
         chainId: 50,
         urls: {
-          // BlockScout instance for XDC mainnet
-          apiURL: "https://explorer.xinfin.network/api",
-          browserURL: "https://explorer.xinfin.network",
+          apiURL: "https://xdcscan.com/api",
+          browserURL: "https://xdcscan.com",
         },
       },
     ],

@@ -77,13 +77,16 @@ async function main() {
 
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log("\n=== Deployment complete ===");
-  console.log(`WattUSD  : ${wattUSDAddress}`);
+  console.log(`WattUSD   : ${wattUSDAddress}`);
   console.log(`MintEngine: ${mintEngineAddress}`);
-  console.log(`Treasury : ${treasuryAddress}`);
+  console.log(`Treasury  : ${treasuryAddress}`);
+  console.log("\nAdd these to contracts/.env, then run verify.ts:");
+  console.log(`WATT_USD_PROXY_ADDRESS=${wattUSDAddress}`);
+  console.log(`MINT_ENGINE_PROXY_ADDRESS=${mintEngineAddress}`);
   console.log("\nNext steps:");
-  console.log("  1. Transfer DEFAULT_ADMIN_ROLE to a multisig");
-  console.log("  2. Run verify.ts to verify on the block explorer");
-  console.log("  3. Update backend .env with contract addresses");
+  console.log("  1. npm run verify:apothem");
+  console.log("  2. Transfer DEFAULT_ADMIN_ROLE to a multisig");
+  console.log("  3. Update backend/.env with contract addresses");
 }
 
 main().catch((err) => {

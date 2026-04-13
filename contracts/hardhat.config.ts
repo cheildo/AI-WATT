@@ -20,7 +20,6 @@ const config: HardhatUserConfig = {
   },
 
   networks: {
-    // Local development
     hardhat: {
       chainId: 31337,
     },
@@ -46,9 +45,35 @@ const config: HardhatUserConfig = {
     },
   },
 
+  // ── Block explorer verification ────────────────────────────────────────────
+  // XDC explorers are BlockScout-based and support the Etherscan-compatible API.
+  // No API key required for BlockScout — use a dummy value.
+  etherscan: {
+    apiKey: {
+      apothem: "no-api-key-required",
+      xdc: "no-api-key-required",
+    },
+    customChains: [
+      {
+        network: "apothem",
+        chainId: 51,
+        urls: {
+          apiURL: "https://apothem.xinfinscan.com/api",
+          browserURL: "https://apothem.xinfinscan.com",
+        },
+      },
+      {
+        network: "xdc",
+        chainId: 50,
+        urls: {
+          apiURL: "https://xinfinscan.com/api",
+          browserURL: "https://xinfinscan.com",
+        },
+      },
+    ],
+  },
+
   paths: {
-    // Solidity sources live in contracts/src/ — keeps node_modules out of compilation
-    // Domain layout within src/ mirrors ARCHITECTURE.md (tokens/, credit/, assets/, etc.)
     sources: "./src",
     tests: "./test",
     cache: "./cache",

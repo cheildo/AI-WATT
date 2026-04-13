@@ -46,28 +46,28 @@ const config: HardhatUserConfig = {
   },
 
   // ── Block explorer verification ────────────────────────────────────────────
-  // XDC explorers are BlockScout-based and support the Etherscan-compatible API.
-  // No API key required for BlockScout — use a dummy value.
+  // Both explorers are BlockScout-based — no API key required.
+  // apiKey must be a flat string (Etherscan v2 format); "placeholder" satisfies
+  // hardhat-verify's non-empty check without being used for auth.
   etherscan: {
-    apiKey: {
-      apothem: "no-api-key-required",
-      xdc: "no-api-key-required",
-    },
+    apiKey: "placeholder",
     customChains: [
       {
         network: "apothem",
         chainId: 51,
         urls: {
-          apiURL: "https://apothem.xinfinscan.com/api",
-          browserURL: "https://apothem.xinfinscan.com",
+          // BlockScout instance for XDC Apothem testnet
+          apiURL: "https://explorer.apothem.network/api",
+          browserURL: "https://explorer.apothem.network",
         },
       },
       {
         network: "xdc",
         chainId: 50,
         urls: {
-          apiURL: "https://xinfinscan.com/api",
-          browserURL: "https://xinfinscan.com",
+          // BlockScout instance for XDC mainnet
+          apiURL: "https://explorer.xinfin.network/api",
+          browserURL: "https://explorer.xinfin.network",
         },
       },
     ],

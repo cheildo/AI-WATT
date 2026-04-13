@@ -63,8 +63,8 @@ async function verifyPlain(
 async function main() {
   const explorerURL =
     network.name === "apothem"
-      ? "https://apothem.xinfinscan.com"
-      : "https://xinfinscan.com";
+      ? "https://explorer.apothem.network"
+      : "https://explorer.xinfin.network";
 
   console.log("=== AI WATT — Contract Verification ===");
   console.log(`Network : ${network.name}`);

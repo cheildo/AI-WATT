@@ -21,6 +21,7 @@ contracts/artifacts/
 contracts/cache/
 contracts/typechain-types/
 contracts/.env
+contracts/.openzeppelin/
 
 # Frontend
 frontend/node_modules/

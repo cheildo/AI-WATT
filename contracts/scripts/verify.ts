@@ -13,6 +13,7 @@ import { run, upgrades, network } from "hardhat";
  * Required env vars (copy from deploy-proxy.ts output):
  *   WATT_USD_PROXY_ADDRESS
  *   MINT_ENGINE_PROXY_ADDRESS
+ *   SWATT_USD_PROXY_ADDRESS
  *
  * Optional (copy from deploy-mocks.ts output):
  *   USDC_ADDRESS
@@ -72,6 +73,7 @@ async function main() {
 
   const wattUSDProxy = process.env.WATT_USD_PROXY_ADDRESS;
   const mintEngineProxy = process.env.MINT_ENGINE_PROXY_ADDRESS;
+  const sWattUSDProxy = process.env.SWATT_USD_PROXY_ADDRESS;
   const usdcAddress = process.env.USDC_ADDRESS;
   const usdtAddress = process.env.USDT_ADDRESS;
 
@@ -86,6 +88,12 @@ async function main() {
     await verifyImpl("MintEngine", mintEngineProxy);
   } else {
     console.warn("MINT_ENGINE_PROXY_ADDRESS not set — skipping MintEngine");
+  }
+
+  if (sWattUSDProxy) {
+    await verifyImpl("sWattUSD", sWattUSDProxy);
+  } else {
+    console.warn("SWATT_USD_PROXY_ADDRESS not set — skipping sWattUSD");
   }
 
   // ── Mock stablecoins — plain contracts, pass constructor args ─────────────

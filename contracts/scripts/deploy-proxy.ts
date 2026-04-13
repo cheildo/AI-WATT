@@ -1,7 +1,7 @@
 import { ethers, upgrades, network } from "hardhat";
 
 /**
- * deploy-proxy.ts — Phase 1 deployment: WattUSD + MintEngine
+ * deploy-proxy.ts — Phase 1 + Phase 2 deployment: WattUSD + MintEngine + sWattUSD
  *
  * Usage:
  *   npx hardhat run scripts/deploy-proxy.ts --network apothem
@@ -17,7 +17,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chainId = (await ethers.provider.getNetwork()).chainId;
 
-  console.log("=== AI WATT — Phase 1 Deploy ===");
+  console.log("=== AI WATT — Phase 1 + 2 Deploy ===");
   console.log(`Network : ${network.name} (chainId: ${chainId})`);
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Balance : ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} XDC\n`);
@@ -66,7 +66,6 @@ async function main() {
   await tx2.wait();
   console.log(`✓ USDC accepted (tx: ${tx2.hash})`);
 
-  // Accept USDT if provided
   const usdtAddress = process.env.USDT_ADDRESS;
   if (usdtAddress) {
     console.log(`Accepting USDT (${usdtAddress}) in MintEngine...`);
@@ -75,14 +74,53 @@ async function main() {
     console.log(`✓ USDT accepted (tx: ${tx3.hash})`);
   }
 
+  // ── 5. Deploy sWattUSD (UUPS proxy) ──────────────────────────────────────
+  console.log("\nDeploying sWattUSD...");
+  const sWattFactory = await ethers.getContractFactory("sWattUSD");
+  const sWattUSD = await upgrades.deployProxy(
+    sWattFactory,
+    [deployer.address, wattUSDAddress],
+    { kind: "uups", initializer: "initialize" }
+  );
+  await sWattUSD.waitForDeployment();
+  const sWattUSDAddress = await sWattUSD.getAddress();
+  console.log(`✓ sWattUSD proxy   : ${sWattUSDAddress}`);
+  console.log(`  Implementation   : ${await upgrades.erc1967.getImplementationAddress(sWattUSDAddress)}\n`);
+
+  // ── 6. Seed initial deposit — inflation attack mitigation ─────────────────
+  // Deploy script mints 1 WATT into sWattUSD so the exchange rate is anchored
+  // before any user deposits. The deployer receives the corresponding sWATT shares.
+  const SEED_AMOUNT = 1_000_000n; // 1 WATT (6 decimals)
+  console.log("Seeding initial deposit (1 WATT) into sWattUSD...");
+
+  // Grant MINTER_ROLE on WattUSD to deployer temporarily for seed mint
+  const tx4 = await (wattUSD as any).grantRole(MINTER_ROLE, deployer.address);
+  await tx4.wait();
+
+  // Mint 1 WATT to deployer
+  const tx5 = await (wattUSD as any).mint(deployer.address, SEED_AMOUNT);
+  await tx5.wait();
+
+  // Approve and deposit into sWattUSD
+  const tx6 = await (wattUSD as any).approve(sWattUSDAddress, SEED_AMOUNT);
+  await tx6.wait();
+  const tx7 = await (sWattUSD as any).deposit(SEED_AMOUNT, deployer.address);
+  await tx7.wait();
+  console.log(`✓ Seed deposit complete (1 WATT → sWATT shares to deployer)\n`);
+
+  // Grant YIELD_DISTRIBUTOR_ROLE to MintEngine address (LendingPool wired in Phase 4)
+  // Skipped here — grant individually when LendingPool is deployed
+
   // ── Summary ───────────────────────────────────────────────────────────────
-  console.log("\n=== Deployment complete ===");
+  console.log("=== Deployment complete ===");
   console.log(`WattUSD   : ${wattUSDAddress}`);
   console.log(`MintEngine: ${mintEngineAddress}`);
+  console.log(`sWattUSD  : ${sWattUSDAddress}`);
   console.log(`Treasury  : ${treasuryAddress}`);
   console.log("\nAdd these to contracts/.env, then run verify.ts:");
   console.log(`WATT_USD_PROXY_ADDRESS=${wattUSDAddress}`);
   console.log(`MINT_ENGINE_PROXY_ADDRESS=${mintEngineAddress}`);
+  console.log(`SWATT_USD_PROXY_ADDRESS=${sWattUSDAddress}`);
   console.log("\nNext steps:");
   console.log("  1. npm run verify:apothem");
   console.log("  2. Transfer DEFAULT_ADMIN_ROLE to a multisig");

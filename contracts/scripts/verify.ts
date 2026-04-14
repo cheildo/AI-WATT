@@ -74,6 +74,9 @@ async function main() {
   const wattUSDProxy = process.env.WATT_USD_PROXY_ADDRESS;
   const mintEngineProxy = process.env.MINT_ENGINE_PROXY_ADDRESS;
   const sWattUSDProxy = process.env.SWATT_USD_PROXY_ADDRESS;
+  const assetRegistryProxy = process.env.ASSET_REGISTRY_PROXY_ADDRESS;
+  const ocnftProxy = process.env.OCNFT_PROXY_ADDRESS;
+  const healthAttestationProxy = process.env.HEALTH_ATTESTATION_PROXY_ADDRESS;
   const usdcAddress = process.env.USDC_ADDRESS;
   const usdtAddress = process.env.USDT_ADDRESS;
 
@@ -94,6 +97,24 @@ async function main() {
     await verifyImpl("sWattUSD", sWattUSDProxy);
   } else {
     console.warn("SWATT_USD_PROXY_ADDRESS not set — skipping sWattUSD");
+  }
+
+  if (assetRegistryProxy) {
+    await verifyImpl("AssetRegistry", assetRegistryProxy);
+  } else {
+    console.warn("ASSET_REGISTRY_PROXY_ADDRESS not set — skipping AssetRegistry");
+  }
+
+  if (ocnftProxy) {
+    await verifyImpl("OCNFT", ocnftProxy);
+  } else {
+    console.warn("OCNFT_PROXY_ADDRESS not set — skipping OCNFT");
+  }
+
+  if (healthAttestationProxy) {
+    await verifyImpl("HealthAttestation", healthAttestationProxy);
+  } else {
+    console.warn("HEALTH_ATTESTATION_PROXY_ADDRESS not set — skipping HealthAttestation");
   }
 
   // ── Mock stablecoins — plain contracts, pass constructor args ─────────────

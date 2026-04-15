@@ -85,6 +85,24 @@ func (h *AssetHandler) GetByID(c *gin.Context) {
 	response.OK(c, assetResp)
 }
 
+// GetHealth godoc
+// @Summary Get current health score for an asset
+// @Tags assets
+// @Produce json
+// @Param assetId path string true "Asset ID"
+// @Success 200 {object} response.Envelope{data=dto.HealthScoreResponse}
+// @Failure 404 {object} response.Envelope
+// @Security BearerAuth
+// @Router /api/v1/assets/{assetId}/health [get]
+func (h *AssetHandler) GetHealth(c *gin.Context) {
+	resp, err := h.assetService.GetHealth(c.Request.Context(), c.Param("assetId"))
+	if err != nil {
+		response.NotFound(c, "asset not found")
+		return
+	}
+	response.OK(c, resp)
+}
+
 // UpdateLTV godoc
 // @Summary Update asset LTV (admin only — triggered by Veriflow scoring)
 // @Tags assets

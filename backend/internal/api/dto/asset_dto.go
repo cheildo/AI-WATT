@@ -2,9 +2,10 @@ package dto
 
 // RegisterAssetRequest is sent when a new hardware asset is onboarded.
 type RegisterAssetRequest struct {
-	AssetType string  `json:"asset_type" binding:"required,oneof=gpu_cluster robotics energy"`
-	OwnerID   string  `json:"owner_id"   binding:"required,uuid"`
-	InitialLTV float64 `json:"initial_ltv" binding:"required,gt=0,lte=1"`
+	AssetType      string  `json:"asset_type"       binding:"required,oneof=gpu_cluster robotics energy"`
+	OwnerID        string  `json:"owner_id"         binding:"required,uuid"`
+	BorrowerWallet string  `json:"borrower_wallet"  binding:"required"`
+	InitialLTV     float64 `json:"initial_ltv"      binding:"required,gt=0,lte=1"`
 }
 
 // UpdateAssetLTVRequest allows backend to update LTV after a Veriflow score change.

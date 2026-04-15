@@ -8,15 +8,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// MintHandler handles HTTP requests for WATT minting and redemption.
+// MintHandler handles HTTP requests for WATT minting, redemption, and vault stats.
 type MintHandler struct {
-	mintService service.MintServicer
-	logger      *zap.Logger
+	mintService  service.MintServicer
+	yieldService service.YieldServicer
+	logger       *zap.Logger
 }
 
 // NewMintHandler constructs a MintHandler.
-func NewMintHandler(svc service.MintServicer, logger *zap.Logger) *MintHandler {
-	return &MintHandler{mintService: svc, logger: logger}
+func NewMintHandler(svc service.MintServicer, yieldSvc service.YieldServicer, logger *zap.Logger) *MintHandler {
+	return &MintHandler{mintService: svc, yieldService: yieldSvc, logger: logger}
 }
 
 // Mint godoc
@@ -84,4 +85,21 @@ func (h *MintHandler) GetNAV(c *gin.Context) {
 		return
 	}
 	response.OK(c, navResp)
+}
+
+// GetVaultStats godoc
+// @Summary Get sWattUSD vault statistics (NAV, APR, deployed capital)
+// @Tags vault
+// @Produce json
+// @Success 200 {object} response.Envelope{data=dto.VaultStatsResponse}
+// @Security BearerAuth
+// @Router /api/v1/vault/stats [get]
+func (h *MintHandler) GetVaultStats(c *gin.Context) {
+	stats, err := h.yieldService.GetVaultStats(c.Request.Context())
+	if err != nil {
+		h.logger.Error("MintHandler.GetVaultStats", zap.Error(err))
+		response.InternalError(c)
+		return
+	}
+	response.OK(c, stats)
 }

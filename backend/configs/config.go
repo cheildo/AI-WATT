@@ -31,7 +31,16 @@ type RedisConfig struct {
 }
 
 type XDCConfig struct {
-	RPCURL string
+	RPCURL            string
+	ChainID           int64
+	WattUSDAddress    string
+	SWattUSDAddress   string
+	MintEngineAddress string
+	AssetRegistryAddress    string
+	OCNFTAddress            string
+	HealthAttestationAddress string
+	LendingPoolAddress      string
+	WEVQueueAddress         string
 }
 
 type JWTConfig struct {
@@ -68,7 +77,16 @@ func Load() *Config {
 			URL: mustEnv("REDIS_URL"),
 		},
 		XDC: XDCConfig{
-			RPCURL: getEnv("XDC_RPC_URL", "https://erpc.apothem.network"),
+			RPCURL:                   getEnv("XDC_RPC_URL", "https://erpc.apothem.network"),
+			ChainID:                  51, // Apothem testnet; override with XDC_CHAIN_ID for mainnet (50)
+			WattUSDAddress:           getEnv("WATT_USD_PROXY_ADDRESS", ""),
+			SWattUSDAddress:          getEnv("SWATT_USD_PROXY_ADDRESS", ""),
+			MintEngineAddress:        getEnv("MINT_ENGINE_PROXY_ADDRESS", ""),
+			AssetRegistryAddress:     getEnv("ASSET_REGISTRY_PROXY_ADDRESS", ""),
+			OCNFTAddress:             getEnv("OCNFT_PROXY_ADDRESS", ""),
+			HealthAttestationAddress: getEnv("HEALTH_ATTESTATION_PROXY_ADDRESS", ""),
+			LendingPoolAddress:       getEnv("LENDING_POOL_PROXY_ADDRESS", ""),
+			WEVQueueAddress:          getEnv("WEV_QUEUE_PROXY_ADDRESS", ""),
 		},
 		JWT: JWTConfig{
 			Secret: mustEnv("JWT_SECRET"),

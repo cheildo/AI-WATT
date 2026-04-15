@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/neurowatt/aiwatt-backend/internal/api/dto"
 )
@@ -14,26 +15,25 @@ type MintServicer interface {
 }
 
 // MintService implements MintServicer.
-type MintService struct {
-	// TODO: inject TxManager, YieldService, Redis NAV cache
-}
+// Phase 8 will wire in TxManager calls to the MintEngine contract.
+type MintService struct{}
 
-// NewMintService constructs a MintService.
-func NewMintService() *MintService {
-	return &MintService{}
-}
+func NewMintService() *MintService { return &MintService{} }
 
 func (s *MintService) Mint(ctx context.Context, req dto.MintRequest) (dto.MintResponse, error) {
-	// TODO: call MintEngine contract via TxManager, track position
-	return dto.MintResponse{}, nil
+	// Phase 8: call MintEngine.depositAndMint via TxManager; return real tx hash + amounts.
+	return dto.MintResponse{AmountMinted: req.Amount, Fee: req.Amount * 0.001}, nil
 }
 
 func (s *MintService) Redeem(ctx context.Context, req dto.RedeemRequest) (dto.MintResponse, error) {
-	// TODO: burn WATT via MintEngine contract, return stablecoin
-	return dto.MintResponse{}, nil
+	// Phase 8: call MintEngine.redeemWATT via TxManager.
+	return dto.MintResponse{AmountRedeemed: req.Amount}, nil
 }
 
 func (s *MintService) GetNAV(ctx context.Context) (dto.NAVResponse, error) {
-	// TODO: read from Redis cache, fallback to YieldService calculation
-	return dto.NAVResponse{}, nil
+	// Phase 8: read from Redis cache, fallback to BlockchainClient.navPerShare().
+	return dto.NAVResponse{
+		NAVPerShare:   1.0,
+		LastUpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}, nil
 }

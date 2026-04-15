@@ -1,6 +1,10 @@
 package service
 
-import "context"
+import (
+	"context"
+
+	"go.uber.org/zap"
+)
 
 // NotifyChannel represents a delivery channel for notifications.
 type NotifyChannel string
@@ -17,13 +21,20 @@ type NotifyServicer interface {
 }
 
 // NotifyService implements NotifyServicer.
+// Phase 9 will wire real email + webhook delivery.
 type NotifyService struct {
-	// TODO: inject email client, webhook client
+	logger *zap.Logger
 }
 
-func NewNotifyService() *NotifyService { return &NotifyService{} }
+func NewNotifyService(logger *zap.Logger) *NotifyService {
+	return &NotifyService{logger: logger}
+}
 
 func (s *NotifyService) Send(ctx context.Context, userID, event, message string, channels ...NotifyChannel) error {
-	// TODO: fan out to requested delivery channels
+	s.logger.Info("notification",
+		zap.String("user_id", userID),
+		zap.String("event", event),
+		zap.String("message", message),
+	)
 	return nil
 }

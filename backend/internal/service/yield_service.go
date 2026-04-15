@@ -1,26 +1,33 @@
 package service
 
-import "context"
+import (
+	"context"
+	"time"
 
-// YieldServicer calculates NAV and distributes yield to sWATT holders.
+	"github.com/neurowatt/aiwatt-backend/internal/api/dto"
+)
+
+// YieldServicer calculates NAV and vault statistics.
 type YieldServicer interface {
-	ComputeNAV(ctx context.Context) (float64, error)
-	DistributeYield(ctx context.Context, loanID string, amount float64) error
+	GetVaultStats(ctx context.Context) (dto.VaultStatsResponse, error)
 }
 
 // YieldService implements YieldServicer.
-type YieldService struct {
-	// TODO: inject LoanRepo, Redis cache
-}
+// Phase 8 will wire in BlockchainClient reads from sWattUSD for real on-chain NAV.
+type YieldService struct{}
 
 func NewYieldService() *YieldService { return &YieldService{} }
 
-func (s *YieldService) ComputeNAV(ctx context.Context) (float64, error) {
-	// TODO: totalAssets / totalSupply from on-chain + DB
-	return 1.0, nil
-}
-
-func (s *YieldService) DistributeYield(ctx context.Context, loanID string, amount float64) error {
-	// TODO: update sWATT vault accounting, cache new NAV in Redis
-	return nil
+func (s *YieldService) GetVaultStats(ctx context.Context) (dto.VaultStatsResponse, error) {
+	// Placeholder — Phase 8 replaces with on-chain sWattUSD.navPerShare() + totalAssets().
+	return dto.VaultStatsResponse{
+		NAVPerShare:   1.0,
+		TotalAssets:   0,
+		TotalSupply:   0,
+		DeployedPct:   0,
+		TBillReserve:  0,
+		APR7D:         0,
+		APR30D:        0,
+		LastUpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}, nil
 }

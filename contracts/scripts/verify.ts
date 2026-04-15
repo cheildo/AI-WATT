@@ -78,6 +78,7 @@ async function main() {
   const ocnftProxy = process.env.OCNFT_PROXY_ADDRESS;
   const healthAttestationProxy = process.env.HEALTH_ATTESTATION_PROXY_ADDRESS;
   const lendingPoolProxy = process.env.LENDING_POOL_PROXY_ADDRESS;
+  const wevQueueProxy    = process.env.WEV_QUEUE_PROXY_ADDRESS;
   const usdcAddress = process.env.USDC_ADDRESS;
   const usdtAddress = process.env.USDT_ADDRESS;
 
@@ -122,6 +123,12 @@ async function main() {
     await verifyImpl("LendingPool", lendingPoolProxy);
   } else {
     console.warn("LENDING_POOL_PROXY_ADDRESS not set — skipping LendingPool");
+  }
+
+  if (wevQueueProxy) {
+    await verifyImpl("WEVQueue", wevQueueProxy);
+  } else {
+    console.warn("WEV_QUEUE_PROXY_ADDRESS not set — skipping WEVQueue");
   }
 
   // ── Mock stablecoins — plain contracts, pass constructor args ─────────────

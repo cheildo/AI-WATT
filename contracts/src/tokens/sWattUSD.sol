@@ -145,18 +145,21 @@ contract sWattUSD is
     // ── ERC-4626 overrides ────────────────────────────────────────────────────
 
     /// @notice Blocks withdrawals above wevThreshold when WEVQueue is configured.
+    ///         WEVQueue itself is exempt — it redeems on behalf of queued users without restriction.
     function maxWithdraw(address owner) public view override returns (uint256) {
         if (paused()) return 0;
         uint256 ownerMax = super.maxWithdraw(owner);
-        if (wevQueue != address(0) && ownerMax > wevThreshold) return wevThreshold;
+        if (wevQueue != address(0) && owner != wevQueue && ownerMax > wevThreshold)
+            return wevThreshold;
         return ownerMax;
     }
 
     /// @notice Blocks redemptions above the share equivalent of wevThreshold when WEVQueue is set.
+    ///         WEVQueue itself is exempt — it redeems on behalf of queued users without restriction.
     function maxRedeem(address owner) public view override returns (uint256) {
         if (paused()) return 0;
         uint256 ownerMax = super.maxRedeem(owner);
-        if (wevQueue != address(0)) {
+        if (wevQueue != address(0) && owner != wevQueue) {
             uint256 thresholdShares = convertToShares(wevThreshold);
             if (ownerMax > thresholdShares) return thresholdShares;
         }
@@ -164,7 +167,7 @@ contract sWattUSD is
     }
 
     /// @dev Reverts with a descriptive error when a large withdrawal is attempted
-    ///      and the WEVQueue guard is active.
+    ///      and the WEVQueue guard is active. WEVQueue bypasses this check.
     function _withdraw(
         address caller,
         address receiver,
@@ -172,7 +175,7 @@ contract sWattUSD is
         uint256 assets,
         uint256 shares
     ) internal override {
-        if (wevQueue != address(0) && assets > wevThreshold) {
+        if (wevQueue != address(0) && caller != wevQueue && assets > wevThreshold) {
             revert LargeRedemptionUseWEVQueue(assets, wevThreshold, wevQueue);
         }
         super._withdraw(caller, receiver, owner, assets, shares);

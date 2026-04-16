@@ -12,6 +12,7 @@ import (
 // TelemetryRepo defines the telemetry database access interface.
 type TelemetryRepo interface {
 	Create(ctx context.Context, t *models.Telemetry) error
+	GetLastN(ctx context.Context, assetID string, n int) ([]*models.Telemetry, error)
 	GetLatestByAsset(ctx context.Context, assetID string) (*models.Telemetry, error)
 	ListByAssetAndDateRange(ctx context.Context, assetID string, from, to time.Time, offset, limit int) ([]*models.Telemetry, error)
 }
@@ -27,6 +28,18 @@ func NewTelemetryRepository(db *gorm.DB) *TelemetryRepository {
 
 func (r *TelemetryRepository) Create(ctx context.Context, t *models.Telemetry) error {
 	return r.db.WithContext(ctx).Create(t).Error
+}
+
+func (r *TelemetryRepository) GetLastN(ctx context.Context, assetID string, n int) ([]*models.Telemetry, error) {
+	var rows []*models.Telemetry
+	if err := r.db.WithContext(ctx).
+		Where("asset_id = ?", assetID).
+		Order("recorded_at DESC").
+		Limit(n).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (r *TelemetryRepository) GetLatestByAsset(ctx context.Context, assetID string) (*models.Telemetry, error) {

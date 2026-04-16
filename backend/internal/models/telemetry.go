@@ -13,6 +13,8 @@ type Telemetry struct {
 	GPUErrorRate    float64   `gorm:"type:decimal(10,6)"`
 	PowerDrawWatts  float64   `gorm:"type:decimal(8,2)"`
 	FanSpeedRPM     int       `gorm:"type:int"`
+	ECCErrors       int64     `gorm:"type:bigint;default:0"`
+	UptimePct       float64   `gorm:"type:decimal(5,2);default:100"`
 	HMACSignature   string    `gorm:"type:varchar(64);not null"`
 	RecordedAt      time.Time `gorm:"not null;index:idx_asset_date"`
 	CreatedAt       time.Time

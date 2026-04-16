@@ -32,6 +32,7 @@ type Asset struct {
 	Status       string         `gorm:"type:varchar(20);not null;default:'pending'"`
 	OCNFTTokenID string         `gorm:"type:varchar(78)"`
 	MetadataURI  string         `gorm:"type:varchar(512)"`
+	HMACSecret   string         `gorm:"type:varchar(64)"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	DeletedAt    gorm.DeletedAt `gorm:"index"`

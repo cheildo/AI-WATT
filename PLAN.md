@@ -4,7 +4,7 @@ Current phase and task tracking. Update this file as work progresses.
 
 ---
 
-## Current Phase: Phase 10 — Frontend (React dApp)
+## Current Phase: Phase 11 — AttestationWriter
 
 **Status: PENDING**
 
@@ -30,6 +30,21 @@ Current phase and task tracking. Update this file as work progresses.
 - 51 tests, all passing
 - Deployed to XDC Apothem testnet
 - Block explorer verification configured (testnet.xdcscan.com, Etherscan API key)
+
+### Phase 10 — Frontend (React dApp) ✅
+- **Scaffold**: Vite 6 + React 18 + TypeScript strict + Tailwind CSS 3 with AI WATT design tokens (surface/brand/yield/warn/danger). Inter + JetBrains Mono fonts. Path alias `@/*`.
+- **Chain config** (`src/chains.ts`): `xdcMainnet` (chainId 50) + `xdcApothem` (chainId 51) via viem `defineChain`.
+- **Providers** (`src/providers.tsx`): `WagmiProvider` (injected + WalletConnect connectors) + `QueryClientProvider` (staleTime 30s).
+- **Stores**: `walletStore` (JWT persisted to localStorage), `txStore` (20-item pending tx ring buffer) — both Zustand.
+- **Contract ABIs** (`src/contracts/abis.ts`): minimal ABI slices for ERC-20, MintEngine, sWattUSD, LendingPool, WEVQueue.
+- **Contract addresses** (`src/contracts/addresses.ts`): read from `VITE_*_ADDRESS` env vars.
+- **Contract hooks** (`src/hooks/contracts/`): useWattUSD (balance/allowance/mint/redeem), useSWattUSD (balance/NAV/vaultStats/stake/requestUnstake), useLendingPool (loan/borrowerLoans/originate/repay), useWEVQueue (status/userQueue/requestRedeem/cancelRedeem). All use wagmi `useReadContract`/`useWriteContract` + `useWaitForTransactionReceipt`.
+- **API hooks** (`src/hooks/api/`): usePortfolio (loans + balances), useVeriflow (health score 60s refetch, attestation, assets), useActivity (chain events 30s refetch, paginated).
+- **Components**: WalletButton, ActionButton (3 variants + spinner), AmountInput (MAX button), DetailsPanel, HealthBadge (colour-coded), HealthCard (score gradient bar), ActivityTable, ProtocolStats (on-chain TVL/NAV), NavBar, SideNav (NavLink active state), ToastProvider (Radix Toast + txStore).
+- **Pages (8)**: Buy (mint/redeem WATT), Stake (stake/unstake + WEV queue), Borrow (engine selector E1/E2/E3 + loan details), Portfolio (balances + open loans, wallet-gated), Veriflow (asset health grid + recharts score trend line + attestation history), Activity (paginated event table), Governance (Phase 6 coming soon), Bridge (LayerZero coming soon).
+- **Router**: React Router v6, `NavBar + SideNav` layout shell, `/` → `/buy`.
+- `tsc --noEmit` and `vite build` both pass clean.
+- **Skipped (deferred)**: React Testing Library component tests; Playwright E2E; WalletConnect projectId config; CORS `.env.local` setup doc.
 
 ### Phase 9 — Veriflow v1 (TelemetryAgent + IngestionService + ScoringEngine) ✅
 - **TelemetryAgent (`veriflow-agent/`)**: Split collector into `nvidia_collector.go` (GPU util/temp/memory/power/ECC uncorrected errors), `system_collector.go` (ipmitool fan + /proc/uptime → UptimePct), `metrics.go` (shared struct). Reporter fixed to sign JSON payload bytes (not formatted string), retry 3x with exponential backoff, structured zap logging. `cmd/main.go` config struct with `REPORT_INTERVAL` env var. `deploy/veriflow-agent.service` systemd template with security hardening. `Makefile` with `build-agent → dist/veriflow-agent-linux-amd64`.
@@ -120,7 +135,7 @@ Current phase and task tracking. Update this file as work progresses.
 | 7 | Backend API — auth, core services, all DTOs, Swagger | ⬜ Pending |
 | 8 | Blockchain layer — BlockchainClient, EventIndexer, TxManager | ⬜ Pending |
 | 9 | Veriflow v1 — TelemetryAgent + IngestionService + ScoringEngine | ✅ Complete |
-| 10 | Frontend — React dApp, wallet connect, all pages | ⬜ Pending |
+| 10 | Frontend — React dApp, wallet connect, all pages | ✅ Complete |
 | 11 | AttestationWriter — daily hash writes to XDC | ⬜ Pending |
 | 12 | TreasuryService — Engine 3 idle capital sweep | ⬜ Pending |
 | 13 | Engine 1 — Pre-delivery PO financing | ⬜ Pending |

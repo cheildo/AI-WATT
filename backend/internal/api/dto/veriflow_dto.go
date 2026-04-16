@@ -1,6 +1,7 @@
 package dto
 
 // TelemetryPayload is the signed payload posted by the Veriflow agent every 5 minutes.
+// The HMAC is computed over the JSON of all fields except hmac_signature itself.
 type TelemetryPayload struct {
 	AssetID         string  `json:"asset_id"          binding:"required,uuid"`
 	Timestamp       int64   `json:"timestamp"         binding:"required"`
@@ -9,8 +10,10 @@ type TelemetryPayload struct {
 	GPUTemperature  float64 `json:"gpu_temperature"`
 	GPUMemoryUsedMB int64   `json:"gpu_memory_used_mb"`
 	GPUErrorRate    float64 `json:"gpu_error_rate"`
+	ECCErrors       int64   `json:"ecc_errors"`
 	PowerDrawWatts  float64 `json:"power_draw_watts"`
 	FanSpeedRPM     int     `json:"fan_speed_rpm"`
+	UptimePct       float64 `json:"uptime_pct"`
 }
 
 // HealthScoreResponse returns the current computed health score for an asset.

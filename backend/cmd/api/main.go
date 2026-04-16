@@ -20,6 +20,7 @@ import (
 	"github.com/neurowatt/aiwatt-backend/internal/blockchain"
 	"github.com/neurowatt/aiwatt-backend/internal/repository"
 	"github.com/neurowatt/aiwatt-backend/internal/service"
+	"github.com/neurowatt/aiwatt-backend/internal/veriflow"
 	"github.com/neurowatt/aiwatt-backend/configs"
 	"github.com/neurowatt/aiwatt-backend/pkg/logger"
 )
@@ -116,10 +117,9 @@ func main() {
 	mintSvc     := service.NewMintService()
 	yieldSvc    := service.NewYieldService()
 	wevSvc      := service.NewWEVService(wevRepo)
-	veriflowSvc := service.NewVeriflowService(telemetryRepo, attestationRepo, assetRepo)
 	notifySvc   := service.NewNotifyService(log)
-
-	_ = notifySvc // wired in Phase 9 when events trigger notifications
+	scorer      := veriflow.NewScorer(telemetryRepo, log)
+	veriflowSvc := service.NewVeriflowService(telemetryRepo, attestationRepo, assetRepo, scorer, txManager, notifySvc, log)
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
 	allowedOrigins := getEnvOrDefault("ALLOWED_ORIGINS", "*")

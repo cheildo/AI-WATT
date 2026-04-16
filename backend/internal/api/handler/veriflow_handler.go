@@ -35,10 +35,7 @@ func (h *VeriflowHandler) IngestTelemetry(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	// The HMAC secret is looked up from the asset record in Phase 9 (full IngestionService).
-	// For Phase 7, the secret is passed via the X-HMAC-Secret header (internal/agent use only).
-	hmacSecret := c.GetHeader("X-HMAC-Secret")
-	if err := h.veriflowService.IngestTelemetry(c.Request.Context(), payload, hmacSecret); err != nil {
+	if err := h.veriflowService.IngestTelemetry(c.Request.Context(), payload); err != nil {
 		h.logger.Error("VeriflowHandler.IngestTelemetry", zap.Error(err))
 		response.Unauthorized(c, "telemetry rejected")
 		return

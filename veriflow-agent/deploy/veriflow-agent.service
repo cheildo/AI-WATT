@@ -1,0 +1,38 @@
+[Unit]
+Description=Veriflow Telemetry Agent — AI WATT Hardware Monitor
+Documentation=https://docs.aiwatt.io/veriflow
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=veriflow
+Group=veriflow
+
+# Binary installed by make install
+ExecStart=/usr/local/bin/veriflow-agent
+
+# Required — set in /etc/veriflow/agent.env
+EnvironmentFile=/etc/veriflow/agent.env
+
+# Restart on failure with 30s back-off
+Restart=on-failure
+RestartSec=30s
+
+# Keep logs in journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=veriflow-agent
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+# Allow access to /proc for uptime and /dev/nvidia* for nvidia-smi
+ReadWritePaths=/tmp
+DeviceAllow=/dev/nvidia* rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+
+[Install]
+WantedBy=multi-user.target

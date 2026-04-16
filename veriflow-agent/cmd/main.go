@@ -1,47 +1,74 @@
 // veriflow-agent — standalone Go binary deployed on borrower hardware as a systemd service.
-// Reads GPU/system metrics and POSTs signed telemetry to the AI WATT backend every 5 minutes.
+// Reads GPU/system metrics and POSTs signed telemetry to the AI WATT backend.
 //
-// Build: CGO_ENABLED=0 go build -o veriflow-agent ./cmd
+// Build: CGO_ENABLED=0 go build -o dist/veriflow-agent-linux-amd64 ./cmd
 package main
 
 import (
-	"log"
 	"os"
+	"strconv"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/neurowatt/veriflow-agent/internal/collector"
 	"github.com/neurowatt/veriflow-agent/internal/reporter"
 )
 
+type config struct {
+	AssetID        string
+	HMACKey        string
+	BackendURL     string
+	ReportInterval time.Duration
+}
+
+func loadConfig() config {
+	mustEnv := func(key string) string {
+		v := os.Getenv(key)
+		if v == "" {
+			// Use a temporary stdlib logger — zap not yet initialised.
+			panic("required env var not set: " + key)
+		}
+		return v
+	}
+	interval := 5 * time.Minute
+	if s := os.Getenv("REPORT_INTERVAL"); s != "" {
+		if secs, err := strconv.Atoi(s); err == nil && secs > 0 {
+			interval = time.Duration(secs) * time.Second
+		}
+	}
+	return config{
+		AssetID:        mustEnv("ASSET_ID"),
+		HMACKey:        mustEnv("HMAC_KEY"),
+		BackendURL:     mustEnv("BACKEND_URL"),
+		ReportInterval: interval,
+	}
+}
+
 func main() {
-	assetID := os.Getenv("ASSET_ID")
-	if assetID == "" {
-		log.Fatal("ASSET_ID environment variable is required")
-	}
-	hmacKey := os.Getenv("HMAC_KEY")
-	if hmacKey == "" {
-		log.Fatal("HMAC_KEY environment variable is required")
-	}
-	backendURL := os.Getenv("BACKEND_URL")
-	if backendURL == "" {
-		log.Fatal("BACKEND_URL environment variable is required")
-	}
+	cfg := loadConfig()
+
+	log, _ := zap.NewProduction()
+	defer log.Sync()
 
 	c := collector.New()
-	r := reporter.New(assetID, []byte(hmacKey), backendURL)
+	r := reporter.New(cfg.AssetID, []byte(cfg.HMACKey), cfg.BackendURL, log)
 
-	interval := 5 * time.Minute
-	log.Printf("veriflow-agent starting: asset=%s interval=%s", assetID, interval)
+	log.Info("veriflow-agent starting",
+		zap.String("asset_id", cfg.AssetID),
+		zap.String("backend_url", cfg.BackendURL),
+		zap.Duration("report_interval", cfg.ReportInterval),
+	)
 
 	for {
 		metrics, err := c.Collect()
 		if err != nil {
-			log.Printf("collect error: %v", err)
+			log.Error("collect failed", zap.Error(err))
 		} else if err := r.Report(metrics); err != nil {
-			log.Printf("report error: %v", err)
+			log.Error("report failed", zap.Error(err))
 		} else {
-			log.Printf("telemetry sent: asset=%s", assetID)
+			log.Info("telemetry sent", zap.String("asset_id", cfg.AssetID))
 		}
-		time.Sleep(interval)
+		time.Sleep(cfg.ReportInterval)
 	}
 }

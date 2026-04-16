@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/neurowatt/veriflow-agent/internal/collector"
 )
 
@@ -20,64 +22,101 @@ type Reporter struct {
 	hmacKey    []byte
 	backendURL string
 	client     *http.Client
+	logger     *zap.Logger
 }
 
 // New constructs a Reporter.
-func New(assetID string, hmacKey []byte, backendURL string) *Reporter {
+func New(assetID string, hmacKey []byte, backendURL string, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		assetID:    assetID,
 		hmacKey:    hmacKey,
 		backendURL: backendURL,
 		client:     &http.Client{Timeout: 30 * time.Second},
+		logger:     logger,
 	}
 }
 
-type payload struct {
+// unsignedPayload holds all fields that are included in the HMAC digest.
+// The hmac_signature field is absent so the backend can reproduce the same JSON.
+type unsignedPayload struct {
 	AssetID         string  `json:"asset_id"`
 	Timestamp       int64   `json:"timestamp"`
-	HMACSignature   string  `json:"hmac_signature"`
 	GPUUtilization  float64 `json:"gpu_utilization"`
 	GPUTemperature  float64 `json:"gpu_temperature"`
 	GPUMemoryUsedMB int64   `json:"gpu_memory_used_mb"`
 	GPUErrorRate    float64 `json:"gpu_error_rate"`
+	ECCErrors       int64   `json:"ecc_errors"`
 	PowerDrawWatts  float64 `json:"power_draw_watts"`
 	FanSpeedRPM     int     `json:"fan_speed_rpm"`
+	UptimePct       float64 `json:"uptime_pct"`
 }
 
-// Report signs the collected metrics and POSTs them to the backend.
+// signedPayload adds the hmac_signature field to the unsigned payload for transport.
+type signedPayload struct {
+	unsignedPayload
+	HMACSignature string `json:"hmac_signature"`
+}
+
+// Report signs the collected metrics and POSTs them to the backend with up to 3 retries.
 func (r *Reporter) Report(m *collector.Metrics) error {
 	ts := time.Now().UTC().Unix()
-	raw := fmt.Sprintf("%s:%d:%.2f:%.2f:%d:%.6f:%.2f:%d",
-		r.assetID, ts,
-		m.GPUUtilization, m.GPUTemperature, m.GPUMemoryUsedMB,
-		m.GPUErrorRate, m.PowerDrawWatts, m.FanSpeedRPM,
-	)
-	mac := hmac.New(sha256.New, r.hmacKey)
-	mac.Write([]byte(raw))
-	sig := hex.EncodeToString(mac.Sum(nil))
 
-	p := payload{
+	unsigned := unsignedPayload{
 		AssetID:         r.assetID,
 		Timestamp:       ts,
-		HMACSignature:   sig,
 		GPUUtilization:  m.GPUUtilization,
 		GPUTemperature:  m.GPUTemperature,
 		GPUMemoryUsedMB: m.GPUMemoryUsedMB,
 		GPUErrorRate:    m.GPUErrorRate,
+		ECCErrors:       m.ECCErrors,
 		PowerDrawWatts:  m.PowerDrawWatts,
 		FanSpeedRPM:     m.FanSpeedRPM,
+		UptimePct:       m.UptimePct,
 	}
-	body, err := json.Marshal(p)
+
+	// Sign the JSON bytes of the unsigned payload — must match backend verification.
+	unsignedBytes, err := json.Marshal(unsigned)
 	if err != nil {
-		return fmt.Errorf("reporter.Report: marshal: %w", err)
+		return fmt.Errorf("reporter.Report: marshal unsigned: %w", err)
 	}
-	resp, err := r.client.Post(r.backendURL+"/api/v1/veriflow/telemetry", "application/json", bytes.NewReader(body))
+	mac := hmac.New(sha256.New, r.hmacKey)
+	mac.Write(unsignedBytes)
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	body, err := json.Marshal(signedPayload{unsignedPayload: unsigned, HMACSignature: sig})
 	if err != nil {
-		return fmt.Errorf("reporter.Report: post: %w", err)
+		return fmt.Errorf("reporter.Report: marshal signed: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("reporter.Report: backend returned %d", resp.StatusCode)
+
+	return r.postWithRetry(body)
+}
+
+// postWithRetry attempts the POST up to 3 times with exponential backoff.
+func (r *Reporter) postWithRetry(body []byte) error {
+	url := r.backendURL + "/api/v1/veriflow/telemetry"
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(1<<attempt) * time.Second // 2s, 4s
+			r.logger.Warn("retrying telemetry POST",
+				zap.Int("attempt", attempt+1),
+				zap.Duration("backoff", backoff),
+				zap.Error(lastErr),
+			)
+			time.Sleep(backoff)
+		}
+
+		resp, err := r.client.Post(url, "application/json", bytes.NewReader(body))
+		if err != nil {
+			lastErr = fmt.Errorf("http post: %w", err)
+			continue
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+		lastErr = fmt.Errorf("backend returned %d", resp.StatusCode)
 	}
-	return nil
+	return fmt.Errorf("reporter.postWithRetry: all attempts failed: %w", lastErr)
 }

@@ -4,9 +4,9 @@ Current phase and task tracking. Update this file as work progresses.
 
 ---
 
-## Current Phase: Phase 11 — AttestationWriter
+## Current Phase: Phase 11 — AttestationWriter (daily hash writes to XDC)
 
-**Status: PENDING**
+**Status: NOT STARTED**
 
 ---
 
@@ -33,18 +33,17 @@ Current phase and task tracking. Update this file as work progresses.
 
 ### Phase 10 — Frontend (React dApp) ✅
 - **Scaffold**: Vite 6 + React 18 + TypeScript strict + Tailwind CSS 3 with AI WATT design tokens (surface/brand/yield/warn/danger). Inter + JetBrains Mono fonts. Path alias `@/*`.
-- **Chain config** (`src/chains.ts`): `xdcMainnet` (chainId 50) + `xdcApothem` (chainId 51) via viem `defineChain`.
-- **Providers** (`src/providers.tsx`): `WagmiProvider` (injected + WalletConnect connectors) + `QueryClientProvider` (staleTime 30s).
-- **Stores**: `walletStore` (JWT persisted to localStorage), `txStore` (20-item pending tx ring buffer) — both Zustand.
-- **Contract ABIs** (`src/contracts/abis.ts`): minimal ABI slices for ERC-20, MintEngine, sWattUSD, LendingPool, WEVQueue.
-- **Contract addresses** (`src/contracts/addresses.ts`): read from `VITE_*_ADDRESS` env vars.
-- **Contract hooks** (`src/hooks/contracts/`): useWattUSD (balance/allowance/mint/redeem), useSWattUSD (balance/NAV/vaultStats/stake/requestUnstake), useLendingPool (loan/borrowerLoans/originate/repay), useWEVQueue (status/userQueue/requestRedeem/cancelRedeem). All use wagmi `useReadContract`/`useWriteContract` + `useWaitForTransactionReceipt`.
-- **API hooks** (`src/hooks/api/`): usePortfolio (loans + balances), useVeriflow (health score 60s refetch, attestation, assets), useActivity (chain events 30s refetch, paginated).
-- **Components**: WalletButton, ActionButton (3 variants + spinner), AmountInput (MAX button), DetailsPanel, HealthBadge (colour-coded), HealthCard (score gradient bar), ActivityTable, ProtocolStats (on-chain TVL/NAV), NavBar, SideNav (NavLink active state), ToastProvider (Radix Toast + txStore).
-- **Pages (8)**: Buy (mint/redeem WATT), Stake (stake/unstake + WEV queue), Borrow (engine selector E1/E2/E3 + loan details), Portfolio (balances + open loans, wallet-gated), Veriflow (asset health grid + recharts score trend line + attestation history), Activity (paginated event table), Governance (Phase 6 coming soon), Bridge (LayerZero coming soon).
-- **Router**: React Router v6, `NavBar + SideNav` layout shell, `/` → `/buy`.
-- `tsc --noEmit` and `vite build` both pass clean.
-- **Skipped (deferred)**: React Testing Library component tests; Playwright E2E; WalletConnect projectId config; CORS `.env.local` setup doc.
+- **Design system**: Cool slate `#F4F6FA` bg, green `#1A3C2A` / gold `#9A6B0A` / teal `#0A7068` palette. Instrument Serif + Inter + JetBrains Mono. Tailwind tokens match `FRONTEND_DESIGN.md` exactly.
+- **Layout**: Topbar 48px (hex logo + animated stat counters + chain badge + wallet connect), Sidebar 56px icon-only (Radix Tooltip portals for overflow-safe tooltips), content `28px/36px` padding.
+- **Swap shell**: SwapWidget (CSS grid `1fr 280px`, notice bar full-width), TabBar, TokenRow (36px icon, 26px mono input, MAX button), SwapDivider, ExchangeRow, TransactionDetails (step connectors + 2-col info grid, 3 action variants).
+- **Data components**: DashCard (ResizeObserver + hand-drawn SVG area charts + time buttons), PipelineCard (N-column grid), DataTable (generic columns + row click), StatusDot.
+- **Veriflow components**: AttestationStrip, HealthCard (3px health bar + 2×2 metrics grid), HealthBadge (ok/warn/crit/pending).
+- **Portfolio components**: PortfolioCard, YieldBanner, WEVOptions (3-option grid).
+- **Shared**: ActionButton (green/gold/outline), Toast (Zustand uiStore, slide-up), ProgressBar.
+- **Pages (8)**: Buy, Stake (Stake/Unstake sub-tabs, NAV calc), Borrow (3 engine cards + dynamic notice), Bridge (placeholder), Dashboard (pipeline + 2 SVG charts + loan table), Veriflow (attestation strip + 6-card grid), Portfolio (4 cards + activity table), Governance (stats + proposals table).
+- **Stores**: `uiStore` (toast), `walletStore` (JWT). `txStore` removed.
+- `tsc --noEmit` clean; `vite build` passes; dev server 200.
+- **Skipped (deferred)**: Live contract/API hook wiring (steps 15–16 — backend must be live first). WalletConnect projectId. E2E tests.
 
 ### Phase 9 — Veriflow v1 (TelemetryAgent + IngestionService + ScoringEngine) ✅
 - **TelemetryAgent (`veriflow-agent/`)**: Split collector into `nvidia_collector.go` (GPU util/temp/memory/power/ECC uncorrected errors), `system_collector.go` (ipmitool fan + /proc/uptime → UptimePct), `metrics.go` (shared struct). Reporter fixed to sign JSON payload bytes (not formatted string), retry 3x with exponential backoff, structured zap logging. `cmd/main.go` config struct with `REPORT_INTERVAL` env var. `deploy/veriflow-agent.service` systemd template with security hardening. `Makefile` with `build-agent → dist/veriflow-agent-linux-amd64`.
@@ -135,7 +134,7 @@ Current phase and task tracking. Update this file as work progresses.
 | 7 | Backend API — auth, core services, all DTOs, Swagger | ⬜ Pending |
 | 8 | Blockchain layer — BlockchainClient, EventIndexer, TxManager | ⬜ Pending |
 | 9 | Veriflow v1 — TelemetryAgent + IngestionService + ScoringEngine | ✅ Complete |
-| 10 | Frontend — React dApp, wallet connect, all pages | ✅ Complete |
+| 10 | Frontend — React dApp, wallet connect, all pages | 🔄 Rebuild |
 | 11 | AttestationWriter — daily hash writes to XDC | ⬜ Pending |
 | 12 | TreasuryService — Engine 3 idle capital sweep | ⬜ Pending |
 | 13 | Engine 1 — Pre-delivery PO financing | ⬜ Pending |
@@ -449,49 +448,93 @@ Current phase and task tracking. Update this file as work progresses.
 
 ---
 
-### Phase 10 — Frontend (React dApp)
+### Phase 10 — Frontend Rebuild (Design Reference)
 
-**Goal:** Full production React dApp. Wallet connect, all protocol interactions, Veriflow dashboard, portfolio, governance.
+**Goal:** Rebuild the React dApp to exactly match the approved design.
 
-**Setup**
-- Init with Vite: `npm create vite@latest . -- --template react-ts`
-- Install: wagmi, viem, @tanstack/react-query, zustand, tailwindcss, @radix-ui/react-*, recharts
+**BEFORE WRITING ANY CODE — read both files first:**
+- `FRONTEND_DESIGN.md` — design tokens, component specs, sizing, build order
+- `frontend/reference/design.html` — open in browser to see the exact visual target
+
+**What changed from the initial build:**
+- Background: #F4F6FA (cool slate) — previous build used warm cream, too similar to USD.AI
+- No Allo™ branding — previous build included it, Allo™ belongs to USD.AI only
+- Portfolio page: shows Protocol Stats card (TVL, loans, T-bill reserve) instead of Allo™ card
+- Layout matches reference: left icon sidebar (w-14), topbar (h-12), swap widget (max-w-[820px]), tx panel (280px)
+- Typography: Instrument Serif for token names/large values, JetBrains Mono for all numbers
+
+**Setup** (wipe the previous build first)
+- `cd frontend && npm create vite@latest . -- --template react-ts`
+- Install: `wagmi viem @tanstack/react-query zustand react-router-dom tailwindcss postcss autoprefixer recharts`
+- `npx tailwindcss init -p`
+- Copy ALL color tokens from FRONTEND_DESIGN.md into `tailwind.config.ts` — do not approximate
+- Add to `index.html`: Instrument Serif + Inter + JetBrains Mono from Google Fonts
 - Configure XDC Network as custom chain in Wagmi:
 ```typescript
 const xdcMainnet = { id: 50, name: 'XDC Network', nativeCurrency: { name: 'XDC', symbol: 'XDC', decimals: 18 }, rpcUrls: { default: { http: ['https://rpc.xdcrpc.com'] } } }
 const xdcApothem = { id: 51, name: 'XDC Apothem Testnet', nativeCurrency: { name: 'TXDC', symbol: 'TXDC', decimals: 18 }, rpcUrls: { default: { http: ['https://erpc.apothem.network'] } } }
 ```
-- Configure React Query for all backend API calls
-- Tailwind CSS with AI WATT design tokens in tailwind.config.ts
+- React Query + Wagmi providers in `main.tsx`
+- React Router v6 in `App.tsx` with all 8 routes
 
-**Contract hooks (`src/hooks/contracts/`)**
-- `useWattUSD.ts`: useMintWatt(amount), useRedeemWatt(amount), useWattBalance(address), useWattAllowance(owner, spender)
-- `useSWattUSD.ts`: useStakeWatt(amount), useRequestUnstake(amount), useSWattBalance(address), useNAVPerShare(), useVaultStats()
-- `useLendingPool.ts`: useOriginateLoan(params), useRepayLoan(loanId, amount), useLoan(loanId), useBorrowerLoans(address)
-- `useWEVQueue.ts`: useRequestRedeem(amount, priority), useCancelRedeem(requestId), useQueueStatus(), useUserQueue(address)
+**Component build checklist** (build in order — verify each against design.html before proceeding)
+
+Layout foundation:
+- [ ] `App.tsx` — full-viewport flex: topbar (h-12 sticky z-50) + (sidebar w-14 + content flex-1), body bg #F4F6FA
+- [ ] `components/layout/TopBar.tsx` — hex logo (green bg, white bolt icon), 4-stat stats bar, XDC chain badge, wallet connect button
+- [ ] `components/layout/Sidebar.tsx` — 9 icon nav buttons, active=green bg, hover tooltip (absolute positioned, green bg)
+- [ ] `components/layout/NavIcon.tsx` — reusable: icon + tooltip + active/inactive state
+
+Shared primitives:
+- [ ] `components/shared/ActionButton.tsx` — green / gold / outline variants, loading spinner
+- [ ] `components/shared/Toast.tsx` + `stores/uiStore.ts` — green bg, slides up bottom-right, 3s auto-dismiss
+- [ ] `components/shared/ProgressBar.tsx` — 4px height, teal/gold/green variants
+- [ ] `components/shared/StatusDot.tsx` — colored dot + text label inline
+- [ ] `lib/formatters.ts` — currency, percent, address (0x…xxxx), number formatting
+
+Swap widget (used on Buy, Stake, Borrow, Bridge — build once, reuse everywhere):
+- [ ] `components/swap/TokenRow.tsx` — circle token icon, serif name, chain label, mono amount input (26px), MAX button
+- [ ] `components/swap/SwapDivider.tsx` — divider lines + circular ↕ center button
+- [ ] `components/swap/ExchangeRow.tsx` — thin strip: label + mono exchange rate
+- [ ] `components/swap/TransactionDetails.tsx` — step list (dots + connector lines) + 2-col info grid + action button (280px panel)
+- [ ] `components/swap/TabBar.tsx` — Buy/Stake/Borrow/Bridge tabs, max-w-[820px], active=green
+- [ ] `components/swap/SwapWidget.tsx` — grid 1fr/280px: notice bar (full-width top) + left panel + TransactionDetails
+
+Pages (one at a time — verify against design.html before moving on):
+- [ ] `pages/Buy.tsx` — WATT mint flow; validates entire swap widget stack
+- [ ] `pages/Stake.tsx` — Stake/Unstake sub-tabs; sWATT = WATT / NAV; unstake shows WEV queue period
+- [ ] `pages/Borrow.tsx` — EngineCards (3 cards above widget); selection updates notice text + fee display
+- [ ] `pages/Bridge.tsx` — "Coming in Phase 3" placeholder; action button disabled
+
+Data display:
+- [ ] `components/data/PipelineCard.tsx` — header + N-column grid, colored dots, serif values, mono sub-text
+- [ ] `components/data/DashCard.tsx` — white card, serif value, SVG area chart, time filter buttons (1W/1M/3M/1Y/ALL)
+- [ ] `components/data/DataTable.tsx` — sortable headers, mono cells, clickable rows, StatusDot column
+- [ ] `pages/Dashboard.tsx` — pipeline card + 2 chart cards + loan details table
+
+Veriflow:
+- [ ] `components/veriflow/HealthBadge.tsx` — ok (teal) / warn (amber) / crit (red) / pending (gray), dot prefix
+- [ ] `components/veriflow/HealthCard.tsx` — serif name, location xs, 3px health bar (animates on mount), 2x2 metrics grid
+- [ ] `components/veriflow/AttestationStrip.tsx` — green-bg banner, shield icon, last attestation + block number
+- [ ] `pages/Veriflow.tsx` — attestation strip + 3-col HealthCard grid + recharts GPU util trend line
+
+Portfolio:
+- [ ] `components/portfolio/YieldBanner.tsx` — teal bg/border, serif yield value, "Auto ✓" teal button
+- [ ] `components/portfolio/WEVOptions.tsx` — 3-button grid: Standard (~30d free) / Priority (~3d, gold) / DEX (now)
+- [ ] `pages/Portfolio.tsx` — 2×2 card grid: Holdings, sWATT Vault, WEV Queue, Protocol Stats (no Allo™) + activity table
+
+Governance:
+- [ ] `pages/Governance.tsx` — 4-col pipeline stats (Voting Power, Proposals, Quorum, Timelock) + proposals table
+
+Contract hooks (`src/hooks/contracts/`) — wire after all pages render correctly with mock data:
+- [ ] `useWattUSD.ts`: useMintWatt(amount), useRedeemWatt(amount), useWattBalance(address), useWattAllowance(owner, spender)
+- [ ] `useSWattUSD.ts`: useStakeWatt(amount), useRequestUnstake(amount), useSWattBalance(address), useNAVPerShare(), useVaultStats()
+- [ ] `useLendingPool.ts`: useOriginateLoan(params), useRepayLoan(loanId, amount), useLoan(loanId), useBorrowerLoans(address)
+- [ ] `useWEVQueue.ts`: useRequestRedeem(amount, priority), useCancelRedeem(requestId), useQueueStatus(), useUserQueue(address)
 - All hooks use wagmi's useReadContract, useWriteContract, useWaitForTransactionReceipt
 
-**API hooks (`src/hooks/api/`)**
-- usePortfolio.ts, useVeriflow.ts, useActivity.ts, useGovernance.ts
-
-**Pages (`src/pages/`)**
-- `Buy.tsx`: mint WATT — token selector (USDC/USDT), amount input, details panel, wallet connect prompt
-- `Stake.tsx`: stake/unstake WATT <-> sWATT — sub-tabs STAKE/UNSTAKE, NAV display, APR, WEV queue options
-- `Borrow.tsx`: loan application — engine selector (E1/E2/E3), amount, term, asset ID, Veriflow requirement notice
-- `Portfolio.tsx`: balances, accrued yield, open loans, WEV queue status, Allo points
-- `Veriflow.tsx`: asset health grid, telemetry charts (recharts line chart for GPU util over time), attestation history
-- `Activity.tsx`: protocol activity table — filterable by event type, asset, engine
-- `Governance.tsx`: active proposals, vote buttons, proposal creation, timelock status
-- `Bridge.tsx`: coming soon page — LayerZero OFT Phase Future
-
-**Components (`src/components/`)**
-- TokenSelector, AmountInput, DetailsPanel, ActionButton (with tx loading/success/error states)
-- WalletButton, HealthBadge, HealthCard, ActivityTable
-- ProtocolStats, NavBar, SideNav, PortfolioCard, WEVWidget, ToastProvider
-
-**State (`src/stores/`)**
-- `walletStore.ts`: connected address, chain ID, connection status
-- `txStore.ts`: pending transactions queue with status tracking
+API hooks (`src/hooks/api/`) — wire after contract hooks:
+- [ ] `usePortfolio.ts`, `useVeriflow.ts`, `useActivity.ts`, `useGovernance.ts`
 
 **Environment (`frontend/.env.example`)**
 ```
@@ -509,6 +552,16 @@ VITE_WEV_QUEUE_ADDRESS=
 - Component tests with React Testing Library
 - Hook tests for contract interactions (mock wagmi hooks)
 - E2E smoke test: connect wallet -> mint WATT -> stake -> check portfolio (Playwright)
+
+**Verification before marking Phase 10 complete:**
+Open `frontend/reference/design.html` side-by-side with `npm run dev`:
+- Background is #F4F6FA (cool slate), NOT warm cream
+- Sidebar exactly 56px (w-14), topbar exactly 48px (h-12)
+- Swap widget max-width 820px, transaction panel 280px
+- All amounts render in JetBrains Mono
+- Token names and large stats render in Instrument Serif
+- Zero Allo™ references visible anywhere
+- `tsc --noEmit` and `vite build` both pass clean
 
 ---
 
@@ -666,6 +719,11 @@ VITE_WEV_QUEUE_ADDRESS=
 | Apr 2026 | sWattUSD seed deposit on deploy | Anchors exchange rate to prevent ERC-4626 inflation attack before first real depositor |
 | Apr 2026 | maxWithdraw/maxRedeem cap enforces WEV threshold | ERC-4626 checks maxWithdraw before _withdraw, so capping there is the right guard point |
 | Apr 2026 | Frontend moved to Phase 10 | Backend + Veriflow must be functional before frontend can integrate meaningfully |
+| Apr 2026 | FRONTEND_DESIGN.md created | Design tokens, component specs, sizing, build order — Claude Code reads this before any frontend work |
+| Apr 2026 | frontend/reference/design.html added to repo | Canonical visual reference so rebuild matches approved design exactly |
+| Apr 2026 | Phase 10 rebuilt with design reference | Initial build lacked design spec; cool slate bg (#F4F6FA) establishes distinct identity from USD.AI |
+| Apr 2026 | Warm cream background rejected for frontend | #F5F2EC too similar to USD.AI; replaced with cool slate (#F4F6FA) |
+| Apr 2026 | Allo™ removed from frontend | USD.AI's proprietary loyalty system — no equivalent in AI WATT |
 | Apr 2026 | Engine 1 pool separate from Engine 2 LendingPool | Pre-delivery escrow logic is complex — isolate to protect Engine 2 TVL from bugs |
 | Apr 2026 | OCNFT is soulbound by default | Hardware title NFTs should not be freely transferable — MINTER_ROLE transfers on settlement only |
 
@@ -694,3 +752,7 @@ VITE_WEV_QUEUE_ADDRESS=
 - Phase 9 Veriflow agent: mock nvidia-smi in unit tests; test on real GPU machine before deploying to borrower
 - Phase 10 frontend: use Vite not CRA; configure XDC as custom chain in Wagmi (see Phase 10 chain config)
 - Phase 11 AttestationWriter: keccak256 encoding must use abi.encodePacked to match HealthAttestation.sol exactly
+- Phase 10 REBUILD: read FRONTEND_DESIGN.md before writing any React code
+- Phase 10 REBUILD: open frontend/reference/design.html in browser as the visual target — run side-by-side with dev server
+- Phase 10 REBUILD: wipe previous frontend/src/ — do not build on top of old code
+- Phase 10 REBUILD: background is #F4F6FA (cool slate), NOT warm cream; no Allo™ anywhere in the app

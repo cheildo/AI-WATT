@@ -1,24 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { useWalletStore } from '@/stores/walletStore'
 
-export interface ChainEvent {
-  id: string
-  contractAddress: string
-  eventName: string
-  parsedArgs: string
-  blockNumber: number
-  txHash: string
-  logIndex: number
-  createdAt: string
+const BASE = import.meta.env.VITE_BACKEND_URL ?? ''
+
+async function fetchActivity(page: number) {
+  const res = await fetch(`${BASE}/api/v1/events?page=${page}&limit=20`)
+  if (!res.ok) throw new Error('Failed to fetch activity')
+  return res.json()
 }
 
 export function useActivity(page = 1) {
-  const jwt = useWalletStore((s) => s.jwt)
   return useQuery({
     queryKey: ['activity', page],
-    queryFn: () =>
-      api.get<{ events: ChainEvent[]; total: number }>(`/api/v1/events?page=${page}&page_size=20`, jwt),
+    queryFn: () => fetchActivity(page),
     refetchInterval: 30_000,
   })
 }

@@ -1,20 +1,17 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-interface WalletState {
+interface WalletStore {
   jwt: string | null
-  setJwt: (token: string | null) => void
-  clearJwt: () => void
+  setJwt: (jwt: string | null) => void
 }
 
-export const useWalletStore = create<WalletState>((set) => ({
-  jwt: localStorage.getItem('aiwatt_jwt'),
-  setJwt: (token) => {
-    if (token) localStorage.setItem('aiwatt_jwt', token)
-    else localStorage.removeItem('aiwatt_jwt')
-    set({ jwt: token })
-  },
-  clearJwt: () => {
-    localStorage.removeItem('aiwatt_jwt')
-    set({ jwt: null })
-  },
-}))
+export const useWalletStore = create<WalletStore>()(
+  persist(
+    (set) => ({
+      jwt: null,
+      setJwt: (jwt) => set({ jwt }),
+    }),
+    { name: 'aiwatt-wallet' }
+  )
+)

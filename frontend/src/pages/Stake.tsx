@@ -1,126 +1,127 @@
 import { useState } from 'react'
-import { useAccount } from 'wagmi'
-import { formatUnits, parseUnits } from 'viem'
-import { AmountInput } from '@/components/AmountInput'
-import { DetailsPanel } from '@/components/DetailsPanel'
-import { ActionButton } from '@/components/ActionButton'
-import { WalletButton } from '@/components/WalletButton'
-import { useWattBalance } from '@/hooks/contracts/useWattUSD'
-import { useSWattBalance, useStakeWatt, useNAVPerShare, useVaultStats, useRequestUnstake } from '@/hooks/contracts/useSWattUSD'
-import { useQueueStatus } from '@/hooks/contracts/useWEVQueue'
-import { useTxStore } from '@/stores/txStore'
+import { TabBar }             from '@/components/swap/TabBar'
+import { SwapWidget }         from '@/components/swap/SwapWidget'
+import { TokenRow }           from '@/components/swap/TokenRow'
+import { SwapDivider }        from '@/components/swap/SwapDivider'
+import { ExchangeRow }        from '@/components/swap/ExchangeRow'
+import { TransactionDetails } from '@/components/swap/TransactionDetails'
+import { useUIStore }         from '@/stores/uiStore'
+import { cn }                 from '@/lib/formatters'
 
-type Tab = 'stake' | 'unstake'
-
-function fmt(v: bigint | undefined, dec = 18) {
-  if (!v) return '0.00'
-  return parseFloat(formatUnits(v, dec)).toLocaleString(undefined, { maximumFractionDigits: 4 })
-}
+const NAV = 1.0418
 
 export function Stake() {
-  const { address, isConnected } = useAccount()
-  const [tab, setTab] = useState<Tab>('stake')
-  const [amount, setAmount] = useState('')
+  const { showToast } = useUIStore()
+  const [mode, setMode]       = useState<'stake' | 'unstake'>('stake')
+  const [amount, setAmount]   = useState('')
 
-  const { data: wattBal }  = useWattBalance(address)
-  const { data: sWattBal } = useSWattBalance(address)
-  const { data: nav }      = useNAVPerShare()
-  const { totalAssets }    = useVaultStats()
-  const { data: queueDepth } = useQueueStatus()
-  const { stake, isPending: staking }           = useStakeWatt()
-  const { requestUnstake, isPending: unstaking } = useRequestUnstake()
-  const add = useTxStore((s) => s.add)
+  const parsed  = parseFloat(amount) || 0
+  const stakeOut   = parsed > 0 ? (parsed / NAV).toFixed(3) : ''
+  const unstakeOut = parsed > 0 ? (parsed * NAV).toFixed(2) : ''
 
-  const parsed = amount ? parseUnits(amount, 18) : 0n
-  const sharesOut = nav && parsed ? (parsed * parseUnits('1', 18)) / nav : 0n
+  const isStake = mode === 'stake'
 
-  const handleSubmit = () => {
-    const id = crypto.randomUUID()
-    if (tab === 'stake' && address) {
-      add({ id, description: `Stake ${amount} WATT`, status: 'pending' })
-      stake(parsed, address)
-    } else {
-      add({ id, description: `Request unstake ${amount} sWATT`, status: 'pending' })
-      requestUnstake(parsed)
-    }
-  }
+  const steps = [
+    { label: isStake ? 'Approve WATT'  : 'Approve sWATT', status: 'active' as const },
+    { label: isStake ? 'Stake WATT'    : 'Unstake sWATT', status: 'pending' as const },
+  ]
+
+  const info = [
+    { key: 'NAV / sWATT',  value: '$1.0418',   variant: 'gold' as const },
+    { key: '7d APR',       value: '12.81%',     variant: 'teal' as const },
+    { key: '30d APR',      value: '11.94%',     variant: 'teal' as const },
+    { key: 'Yield source', value: 'GPU loans' },
+    { key: 'Unstake est.', value: '14–30 days' },
+  ]
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-text-primary">Stake</h1>
+    <div className="animate-fadeup">
+      <TabBar />
+      <SwapWidget
+        notice={
+          <>
+            The average sWATT unstaking period is{' '}
+            <span className="text-teal font-semibold">14–30 days via WEV queue</span>.
+            Priority exit available at 0.5% fee.
+          </>
+        }
+        left={
+          <>
+            {/* Sub-tab bar */}
+            <div
+              className="border-b border-border overflow-hidden"
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', margin: '12px 18px 0' }}
+            >
+              {(['stake', 'unstake'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setAmount('') }}
+                  className={cn(
+                    'py-2 text-center font-semibold uppercase tracking-[.07em] border-b-2 cursor-pointer transition-colors',
+                    mode === m
+                      ? 'border-green text-green bg-green text-white border-green rounded-sm'
+                      : 'border-transparent text-text-3 bg-transparent hover:text-text-2'
+                  )}
+                  style={{ fontSize: 11 }}
+                >
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </button>
+              ))}
+            </div>
 
-      {/* Vault stats */}
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        {[
-          { label: 'TVL',           value: `${fmt(totalAssets.data)} WATT` },
-          { label: 'NAV / sWATT',   value: `${fmt(nav)} WATT` },
-          { label: 'Queue depth',   value: queueDepth?.toString() ?? '—' },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-surface-border bg-surface-card p-3 text-center">
-            <p className="text-xs text-text-secondary">{s.label}</p>
-            <p className="mt-1 text-sm font-semibold text-text-primary">{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs */}
-      <div className="mb-4 flex rounded-xl border border-surface-border bg-surface-card p-1">
-        {(['stake', 'unstake'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 rounded-lg py-2 text-sm font-medium capitalize transition-colors ${
-              tab === t ? 'bg-brand text-white' : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3">
-        <AmountInput
-          label={tab === 'stake' ? 'WATT to stake' : 'sWATT to unstake'}
-          value={amount}
-          onChange={setAmount}
-          symbol={tab === 'stake' ? 'WATT' : 'sWATT'}
-          max={tab === 'stake' ? fmt(wattBal) : fmt(sWattBal)}
-        />
-
-        <DetailsPanel
-          rows={
-            tab === 'stake'
-              ? [
-                  { label: 'You receive (est.)', value: amount ? `${fmt(sharesOut)} sWATT` : '—', highlight: true },
-                  { label: 'WATT balance',       value: `${fmt(wattBal)} WATT` },
-                ]
-              : [
-                  { label: 'Est. wait',          value: '~30 days (standard)' },
-                  { label: 'sWATT balance',      value: `${fmt(sWattBal)} sWATT` },
-                  { label: 'Queue depth',        value: queueDepth?.toString() ?? '—' },
-                ]
-          }
-        />
-
-        {tab === 'unstake' && (
-          <p className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-xs text-warn">
-            Unstaking enters the WEV redemption queue (~30 days). Priority exit available for 0.5% fee.
-          </p>
-        )}
-
-        {!isConnected ? (
-          <div className="flex justify-center pt-2"><WalletButton /></div>
-        ) : (
-          <ActionButton
-            onClick={handleSubmit}
-            isLoading={staking || unstaking}
-            disabled={!amount || parsed === 0n}
-            className="w-full"
-          >
-            {tab === 'stake' ? 'Stake WATT' : 'Enter Unstake Queue'}
-          </ActionButton>
-        )}
-      </div>
+            {isStake ? (
+              <>
+                <TokenRow
+                  token="WATT"
+                  balance="3,200.00"
+                  amount={amount}
+                  onAmountChange={setAmount}
+                  showMax
+                  onMax={() => setAmount('3200')}
+                  subValue={parsed > 0 ? `${stakeOut} sWATT` : '0.000 sWATT'}
+                />
+                <SwapDivider />
+                <TokenRow
+                  token="sWATT"
+                  balance="3,068.42"
+                  amount={stakeOut}
+                  readOnly
+                  subValue="sWattUSD"
+                />
+                <ExchangeRow left="Exchange" right="1 WATT = 0.9599 sWATT · NAV $1.0418" />
+              </>
+            ) : (
+              <>
+                <TokenRow
+                  token="sWATT"
+                  balance="3,068.42"
+                  amount={amount}
+                  onAmountChange={setAmount}
+                  showMax
+                  onMax={() => setAmount('3068.42')}
+                  subValue={parsed > 0 ? `${unstakeOut} WATT` : '0.00 WATT'}
+                />
+                <SwapDivider />
+                <TokenRow
+                  token="WATT"
+                  balance="3,200.00"
+                  amount={unstakeOut}
+                  readOnly
+                />
+                <ExchangeRow left="Exchange" right="1 sWATT = 1.0418 WATT" />
+              </>
+            )}
+          </>
+        }
+        right={
+          <TransactionDetails
+            steps={steps}
+            info={info}
+            actionLabel={isStake ? 'Stake WATT' : 'Unstake sWATT'}
+            onAction={() => showToast(isStake ? 'Staking submitted — sWATT arriving shortly' : 'Unstake queued via WEV')}
+          />
+        }
+      />
     </div>
   )
 }

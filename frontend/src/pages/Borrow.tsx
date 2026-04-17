@@ -1,108 +1,110 @@
 import { useState } from 'react'
-import { useAccount } from 'wagmi'
-import { DetailsPanel } from '@/components/DetailsPanel'
-import { ActionButton } from '@/components/ActionButton'
-import { WalletButton } from '@/components/WalletButton'
-import { AmountInput } from '@/components/AmountInput'
+import { TabBar }             from '@/components/swap/TabBar'
+import { SwapWidget }         from '@/components/swap/SwapWidget'
+import { TokenRow }           from '@/components/swap/TokenRow'
+import { ExchangeRow }        from '@/components/swap/ExchangeRow'
+import { TransactionDetails } from '@/components/swap/TransactionDetails'
+import { useUIStore }         from '@/stores/uiStore'
+import { cn }                 from '@/lib/formatters'
 
 const ENGINES = [
-  { id: 1, label: 'Engine 1 — Pre-delivery PO Financing', description: 'Finance hardware before delivery against purchase orders.' },
-  { id: 2, label: 'Engine 2 — Productivity-backed Loans', description: 'Post-delivery loans backed by on-chain GPU productivity attestations.' },
-  { id: 3, label: 'Engine 3 — Idle Capital Sweep',        description: 'Short-term yield on treasury idle capital.' },
+  { id: 1, label: 'Engine 1', title: 'Pre-Delivery',  sub: 'Finance your 30% purchase order deposit before hardware ships', fee: '2–3% origination',  feeRate: 0.025 },
+  { id: 2, label: 'Engine 2', title: 'Post-Delivery', sub: 'Productivity-backed loan once hardware is deployed and running', fee: '1.5–2.5% AUM/yr',   feeRate: 0.020 },
+  { id: 3, label: 'Engine 3', title: 'Reactivation',  sub: 'Idle escrow capital auto-deployed into T-bills during delivery window', fee: '~5% APY',     feeRate: 0 },
 ]
 
-export function Borrow() {
-  const { isConnected } = useAccount()
-  const [engine, setEngine]   = useState(2)
-  const [assetId, setAssetId] = useState('')
-  const [amount, setAmount]   = useState('')
-  const [term, setTerm]       = useState('90')
+const ENGINE_NOTICES: Record<number, string> = {
+  1: 'Engine 1: Veriflow certifies your PO. AI WATT finances 30% deposit. Hardware delivered, loan repaid over term.',
+  2: 'Engine 2: Hardware is deployed. Veriflow monitors real-time telemetry. Productivity-backed loan against running asset.',
+  3: 'Engine 3: Idle escrow capital during delivery window auto-deployed to T-bills. Generates additional base yield.',
+}
 
-  const interestRate = 0.12 // 12% APR (placeholder)
-  const totalInterest = amount ? parseFloat(amount) * interestRate * (parseInt(term) / 365) : 0
+const ENGINE_LABELS: Record<number, string> = {
+  1: 'E1 — Pre-delivery · 2–3% origination',
+  2: 'E2 — Post-delivery · 1.5–2.5% AUM/yr',
+  3: 'E3 — Capital reactivation · ~5% APY',
+}
+
+export function Borrow() {
+  const { showToast } = useUIStore()
+  const [engine, setEngine]   = useState(1)
+  const [amount, setAmount]   = useState('')
+
+  const parsed    = parseFloat(amount) || 0
+  const engData   = ENGINES.find((e) => e.id === engine)!
+  const feeAmt    = (parsed * engData.feeRate).toFixed(2)
+  const usdStr    = parsed > 0 ? '$' + parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '$0.00'
+
+  const steps = [
+    { label: 'Veriflow certification', status: 'active' as const },
+    { label: 'OC-NFT minted',         status: 'pending' as const },
+    { label: 'Loan originated',        status: 'pending' as const },
+  ]
+
+  const info = [
+    { key: 'Origination fee', value: `${feeAmt} WATT` },
+    { key: 'Collateral',      value: 'OC-NFT + SPV' },
+    { key: 'Term',            value: '3–36 months' },
+    { key: 'Repayment',       value: 'Monthly' },
+  ]
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-text-primary">Borrow</h1>
+    <div className="animate-fadeup">
+      <TabBar />
 
       {/* Engine selector */}
-      <div className="mb-6 space-y-2">
-        <p className="text-xs font-medium text-text-secondary">Select Engine</p>
+      <div
+        className="mb-4 animate-fadeup"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, maxWidth: 820 }}
+      >
         {ENGINES.map((e) => (
           <button
             key={e.id}
             onClick={() => setEngine(e.id)}
-            className={`w-full rounded-xl border p-4 text-left transition-colors ${
-              engine === e.id ? 'border-brand bg-brand-muted' : 'border-surface-border bg-surface-card hover:border-brand/40'
-            }`}
+            className={cn(
+              'border-[1.5px] rounded text-left cursor-pointer transition-colors',
+              engine === e.id
+                ? 'border-green-mid bg-green-bg'
+                : 'border-border bg-white hover:border-border-strong hover:bg-bg'
+            )}
+            style={{ padding: 14, borderRadius: 4 }}
           >
-            <p className={`text-sm font-medium ${engine === e.id ? 'text-brand' : 'text-text-primary'}`}>
+            <div className="font-semibold uppercase tracking-[.08em] text-text-3 mb-1" style={{ fontSize: 11 }}>
               {e.label}
-            </p>
-            <p className="mt-0.5 text-xs text-text-secondary">{e.description}</p>
+            </div>
+            <div className="font-serif mb-[3px]" style={{ fontSize: 15 }}>{e.title}</div>
+            <div className="text-text-3 leading-[1.4] mb-2" style={{ fontSize: 11 }}>{e.sub}</div>
+            <div className="font-mono font-medium text-gold" style={{ fontSize: 12 }}>{e.fee}</div>
           </button>
         ))}
       </div>
 
-      <div className="space-y-3">
-        {engine === 2 && (
+      <SwapWidget
+        notice={ENGINE_NOTICES[engine]}
+        left={
           <>
-            <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-              <p className="mb-2 text-xs text-text-secondary">Asset ID (from Veriflow dashboard)</p>
-              <input
-                value={assetId}
-                onChange={(e) => setAssetId(e.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full bg-transparent font-mono text-sm text-text-primary outline-none placeholder:text-text-muted"
-              />
-            </div>
-            <p className="rounded-xl border border-brand/30 bg-brand-muted px-4 py-3 text-xs text-brand">
-              Engine 2 requires a Veriflow health attestation ≥ 60 and asset registered in AssetRegistry.
-            </p>
+            <TokenRow
+              token="WATT"
+              nameOverride="Loan Amount"
+              chainOverride="Disbursed in WATT · Max LTV 70%"
+              balance="Max available: $5,200,000"
+              amount={amount}
+              onAmountChange={setAmount}
+              subValue={usdStr}
+            />
+            <ExchangeRow left="Engine" right={ENGINE_LABELS[engine]} />
           </>
-        )}
-
-        <AmountInput
-          label="Loan amount"
-          value={amount}
-          onChange={setAmount}
-          symbol="WATT"
-        />
-
-        <div className="rounded-xl border border-surface-border bg-surface-card p-4">
-          <p className="mb-2 text-xs text-text-secondary">Loan term (days)</p>
-          <div className="flex gap-2">
-            {['30', '60', '90', '180', '365'].map((d) => (
-              <button
-                key={d}
-                onClick={() => setTerm(d)}
-                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                  term === d ? 'bg-brand text-white' : 'bg-surface-hover text-text-secondary hover:text-text-primary'
-                }`}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <DetailsPanel
-          rows={[
-            { label: 'Interest rate (APR)', value: '12%' },
-            { label: 'Term',               value: `${term} days` },
-            { label: 'Total interest',     value: amount ? `${totalInterest.toFixed(2)} WATT` : '—' },
-            { label: 'Total repayment',    value: amount ? `${(parseFloat(amount) + totalInterest).toFixed(2)} WATT` : '—', highlight: true },
-          ]}
-        />
-
-        {!isConnected ? (
-          <div className="flex justify-center pt-2"><WalletButton /></div>
-        ) : (
-          <ActionButton disabled={!amount || (engine === 2 && !assetId)} className="w-full">
-            Apply for Loan
-          </ActionButton>
-        )}
-      </div>
+        }
+        right={
+          <TransactionDetails
+            steps={steps}
+            info={info}
+            actionLabel="Submit Application"
+            actionVariant="gold"
+            onAction={() => showToast('Application submitted — Veriflow certification begins')}
+          />
+        }
+      />
     </div>
   )
 }

@@ -1,41 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
-import { useWalletStore } from '@/stores/walletStore'
+import { useAccount } from 'wagmi'
 
-export interface LoanSummary {
-  id: string
-  assetId: string
-  engineType: number
-  status: string
-  createdAt: string
+const BASE = import.meta.env.VITE_BACKEND_URL ?? ''
+
+async function fetchPortfolio(address: string) {
+  const res = await fetch(`${BASE}/api/v1/loans?borrower=${address}`)
+  if (!res.ok) throw new Error('Failed to fetch portfolio')
+  return res.json()
 }
 
-export interface PortfolioData {
-  wattBalance: string
-  sWattBalance: string
-  accruedYield: string
-  openLoans: LoanSummary[]
-  wevQueueCount: number
-}
-
-export function usePortfolio(address?: string) {
-  const jwt = useWalletStore((s) => s.jwt)
+export function usePortfolio() {
+  const { address } = useAccount()
   return useQuery({
     queryKey: ['portfolio', address],
-    queryFn: () => api.get<PortfolioData>(`/api/v1/portfolio/${address}`, jwt),
-    enabled: !!address && !!jwt,
-  })
-}
-
-export function useLoans(borrowerId?: string) {
-  const jwt = useWalletStore((s) => s.jwt)
-  return useQuery({
-    queryKey: ['loans', borrowerId],
-    queryFn: () =>
-      api.get<{ loans: LoanSummary[]; total: number; page: number }>(
-        `/api/v1/loans?borrower_id=${borrowerId}&page=1&page_size=20`,
-        jwt,
-      ),
-    enabled: !!borrowerId && !!jwt,
+    queryFn: () => fetchPortfolio(address!),
+    enabled: !!address,
+    staleTime: 30_000,
   })
 }

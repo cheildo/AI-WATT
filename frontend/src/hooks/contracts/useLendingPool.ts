@@ -3,16 +3,6 @@ import type { Address } from 'viem'
 import { CONTRACT_ADDRESSES } from '@/contracts/addresses'
 import { lendingPoolAbi } from '@/contracts/abis'
 
-export function useLoan(loanId?: `0x${string}`) {
-  return useReadContract({
-    address: CONTRACT_ADDRESSES.lendingPool,
-    abi: lendingPoolAbi,
-    functionName: 'getLoan',
-    args: loanId ? [loanId] : undefined,
-    query: { enabled: !!loanId },
-  })
-}
-
 export function useBorrowerLoans(borrower?: Address) {
   return useReadContract({
     address: CONTRACT_ADDRESSES.lendingPool,
@@ -27,19 +17,19 @@ export function useOriginateLoan() {
   const { writeContract, data: hash, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const originate = (params: {
-    assetId: `0x${string}`
-    borrower: Address
-    principal: bigint
-    interestRate: bigint
-    termDays: bigint
-    engineType: number
-  }) =>
+  const originate = (
+    assetId: `0x${string}`,
+    borrower: Address,
+    principal: bigint,
+    interestRate: bigint,
+    termDays: bigint,
+    engineType: number,
+  ) =>
     writeContract({
       address: CONTRACT_ADDRESSES.lendingPool,
       abi: lendingPoolAbi,
       functionName: 'originateLoan',
-      args: [params.assetId, params.borrower, params.principal, params.interestRate, params.termDays, params.engineType],
+      args: [assetId, borrower, principal, interestRate, termDays, engineType],
     })
 
   return { originate, hash, isPending: isPending || isConfirming, isSuccess, error }

@@ -3,7 +3,7 @@ import type { Address } from 'viem'
 import { CONTRACT_ADDRESSES } from '@/contracts/addresses'
 import { wevQueueAbi } from '@/contracts/abis'
 
-export function useQueueStatus() {
+export function useQueueDepth() {
   return useReadContract({
     address: CONTRACT_ADDRESSES.wevQueue,
     abi: wevQueueAbi,
@@ -25,32 +25,22 @@ export function useRequestRedeem() {
   const { writeContract, data: hash, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const requestRedeem = (sWattAmount: bigint, priority = false, priorityFee = 0n) => {
-    if (priority) {
-      writeContract({
-        address: CONTRACT_ADDRESSES.wevQueue,
-        abi: wevQueueAbi,
-        functionName: 'requestPriorityRedeem',
-        args: [sWattAmount, priorityFee],
-      })
-    } else {
-      writeContract({
-        address: CONTRACT_ADDRESSES.wevQueue,
-        abi: wevQueueAbi,
-        functionName: 'requestRedeem',
-        args: [sWattAmount],
-      })
-    }
-  }
+  const requestRedeem = (sWattAmount: bigint) =>
+    writeContract({
+      address: CONTRACT_ADDRESSES.wevQueue,
+      abi: wevQueueAbi,
+      functionName: 'requestRedeem',
+      args: [sWattAmount],
+    })
 
   return { requestRedeem, hash, isPending: isPending || isConfirming, isSuccess, error }
 }
 
-export function useCancelRedeem() {
+export function useCancelRequest() {
   const { writeContract, data: hash, isPending, error } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const cancelRedeem = (requestId: `0x${string}`) =>
+  const cancel = (requestId: `0x${string}`) =>
     writeContract({
       address: CONTRACT_ADDRESSES.wevQueue,
       abi: wevQueueAbi,
@@ -58,5 +48,5 @@ export function useCancelRedeem() {
       args: [requestId],
     })
 
-  return { cancelRedeem, hash, isPending: isPending || isConfirming, isSuccess, error }
+  return { cancel, hash, isPending: isPending || isConfirming, isSuccess, error }
 }

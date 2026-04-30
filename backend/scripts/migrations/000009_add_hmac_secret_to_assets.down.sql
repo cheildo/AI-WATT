@@ -1,2 +1,2 @@
-ALTER TABLE assets
-    DROP COLUMN hmac_secret;
+-- no-op
+SELECT 1;

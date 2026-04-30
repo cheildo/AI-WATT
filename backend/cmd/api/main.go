@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -90,9 +89,14 @@ func main() {
 	}
 	defer bcClient.Close()
 
-	txManager, err := blockchain.NewTxManager(bcClient, cfg.Veriflow.SignerPrivateKey, cfg.XDC.ChainID, rdb, log)
-	if err != nil {
-		log.Fatal("failed to create TxManager", zap.Error(err))
+	var txManager *blockchain.TxManager
+	if cfg.Veriflow.SignerPrivateKey != "" && cfg.Veriflow.SignerPrivateKey != "0x" {
+		txManager, err = blockchain.NewTxManager(bcClient, cfg.Veriflow.SignerPrivateKey, cfg.XDC.ChainID, rdb, log)
+		if err != nil {
+			log.Fatal("failed to create TxManager", zap.Error(err))
+		}
+	} else {
+		log.Warn("VERIFLOW_SIGNER_PRIVATE_KEY not set — on-chain writes disabled (safe for local dev / CI)")
 	}
 
 	// ── Repositories ──────────────────────────────────────────────────────────
@@ -105,7 +109,7 @@ func main() {
 	eventRepo       := repository.NewEventRepository(db)
 
 	// ── Event Indexer ─────────────────────────────────────────────────────────
-	indexer, err := blockchain.NewEventIndexer(bcClient, eventRepo, rdb, log)
+	indexer, err := blockchain.NewEventIndexer(bcClient, eventRepo, rdb, log, cfg.XDC.IndexerStartBlock)
 	if err != nil {
 		log.Fatal("failed to create EventIndexer", zap.Error(err))
 	}
@@ -122,11 +126,9 @@ func main() {
 	veriflowSvc := service.NewVeriflowService(telemetryRepo, attestationRepo, assetRepo, scorer, txManager, notifySvc, log)
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
-	allowedOrigins := getEnvOrDefault("ALLOWED_ORIGINS", "*")
-
 	deps := api.RouterDeps{
 		JWTSecret:      cfg.JWT.Secret,
-		AllowedOrigins: allowedOrigins,
+		AllowedOrigins: cfg.Server.AllowedOrigins,
 		Logger:         log,
 		RedisClient:    rdb,
 		UserHandler:    handler.NewUserHandler(userSvc, log),
@@ -176,9 +178,3 @@ func main() {
 	log.Info("server stopped")
 }
 
-func getEnvOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}

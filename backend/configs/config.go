@@ -2,24 +2,27 @@ package configs
 
 import (
 	"os"
+	"strconv"
+	"strings"
 )
 
 // Config holds all application configuration parsed from environment variables.
 type Config struct {
-	Server     ServerConfig
-	Database   DatabaseConfig
-	Redis      RedisConfig
-	XDC        XDCConfig
-	JWT        JWTConfig
-	Veriflow   VeriflowConfig
-	Pinata     PinataConfig
-	KYC        KYCConfig
-	BitGo      BitGoConfig
+	Server   ServerConfig
+	Database DatabaseConfig
+	Redis    RedisConfig
+	XDC      XDCConfig
+	JWT      JWTConfig
+	Veriflow VeriflowConfig
+	Pinata   PinataConfig
+	KYC      KYCConfig
+	BitGo    BitGoConfig
 }
 
 type ServerConfig struct {
-	Port string
-	Env  string
+	Port           string
+	Env            string
+	AllowedOrigins string
 }
 
 type DatabaseConfig struct {
@@ -31,16 +34,17 @@ type RedisConfig struct {
 }
 
 type XDCConfig struct {
-	RPCURL            string
-	ChainID           int64
-	WattUSDAddress    string
-	SWattUSDAddress   string
-	MintEngineAddress string
-	AssetRegistryAddress    string
-	OCNFTAddress            string
+	RPCURL                   string
+	ChainID                  int64
+	IndexerStartBlock        uint64
+	WattUSDAddress           string
+	SWattUSDAddress          string
+	MintEngineAddress        string
+	AssetRegistryAddress     string
+	OCNFTAddress             string
 	HealthAttestationAddress string
-	LendingPoolAddress      string
-	WEVQueueAddress         string
+	LendingPoolAddress       string
+	WEVQueueAddress          string
 }
 
 type JWTConfig struct {
@@ -48,6 +52,8 @@ type JWTConfig struct {
 }
 
 type VeriflowConfig struct {
+	// SignerPrivateKey is the 0x-prefixed hex key used to write attestations on-chain.
+	// Empty string disables on-chain writes (safe for local dev / CI without a funded wallet).
 	SignerPrivateKey string
 }
 
@@ -64,21 +70,27 @@ type BitGoConfig struct {
 }
 
 // Load reads configuration from environment variables.
+// Only DATABASE_URL, REDIS_URL, and JWT_SECRET are required (will panic if missing).
+// All other fields have sensible defaults for local development.
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port: getEnv("PORT", "8080"),
-			Env:  getEnv("APP_ENV", "development"),
+			Port:           getEnv("PORT", "8080"),
+			Env:            getEnv("APP_ENV", "development"),
+			AllowedOrigins: getEnv("ALLOWED_ORIGINS", "*"),
 		},
 		Database: DatabaseConfig{
-			URL: mustEnv("DATABASE_URL"),
+			// go-migrate uses the mysql:// URL scheme; go-sql-driver/mysql (GORM)
+			// expects the bare DSN format user:pass@tcp(host)/db?params — strip prefix.
+			URL: strings.TrimPrefix(mustEnv("DATABASE_URL"), "mysql://"),
 		},
 		Redis: RedisConfig{
 			URL: mustEnv("REDIS_URL"),
 		},
 		XDC: XDCConfig{
 			RPCURL:                   getEnv("XDC_RPC_URL", "https://erpc.apothem.network"),
-			ChainID:                  51, // Apothem testnet; override with XDC_CHAIN_ID for mainnet (50)
+			ChainID:                  getEnvInt64("XDC_CHAIN_ID", 51), // 51=Apothem, 50=mainnet
+			IndexerStartBlock:        uint64(getEnvInt64("XDC_INDEXER_START_BLOCK", 0)),
 			WattUSDAddress:           getEnv("WATT_USD_PROXY_ADDRESS", ""),
 			SWattUSDAddress:          getEnv("SWATT_USD_PROXY_ADDRESS", ""),
 			MintEngineAddress:        getEnv("MINT_ENGINE_PROXY_ADDRESS", ""),
@@ -92,7 +104,7 @@ func Load() *Config {
 			Secret: mustEnv("JWT_SECRET"),
 		},
 		Veriflow: VeriflowConfig{
-			SignerPrivateKey: mustEnv("VERIFLOW_SIGNER_PRIVATE_KEY"),
+			SignerPrivateKey: getEnv("VERIFLOW_SIGNER_PRIVATE_KEY", ""),
 		},
 		Pinata: PinataConfig{
 			APIKey: getEnv("PINATA_API_KEY", ""),
@@ -113,6 +125,18 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+func getEnvInt64(key string, fallback int64) int64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
 func mustEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
@@ -120,4 +144,3 @@ func mustEnv(key string) string {
 	}
 	return v
 }
-

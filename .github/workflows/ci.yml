@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — typecheck + lint + build
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (staging mode)
+        run: npm run build -- --mode staging
+        env:
+          VITE_ENV: staging
+          VITE_CHAIN_ID: '51'
+          VITE_RPC_URL: https://erpc.apothem.network
+          VITE_API_URL: https://api-staging.aiwatt.io
+          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
+          # Stablecoins
+          VITE_USDC_ADDRESS: '0x6404e052B842fB1c82C1A404C7E02BE2A92A7970'
+          VITE_USDT_ADDRESS: '0x59828572B8ABEDa2A0f963ECC94b80Eee01bbA6c'
+          # Protocol contracts
+          VITE_WATT_ADDRESS: '0x974B2bd650c88D290469a471DeB1Ee6aC55AD2d9'
+          VITE_SWATT_ADDRESS: '0x08c14aCc5547f03fC523453e005A243C50A7aa94'
+          VITE_MINT_ENGINE_ADDRESS: '0x37a1d3b072af3055993215DB82e3832dA2d10AEd'
+          VITE_LENDING_POOL_ADDRESS: '0x0000000000000000000000000000000000000000'
+          VITE_WEV_QUEUE_ADDRESS: '0x0000000000000000000000000000000000000000'
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-staging-${{ github.sha }}
+          path: frontend/dist/
+          retention-days: 7
+
+  # ── Backend ─────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend — vet + build + test
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: aiwatt_test
+          MYSQL_USER: aiwatt
+          MYSQL_PASSWORD: aiwatt
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u aiwatt -paiwatt"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: backend/go.sum
+
+      - name: Download Go modules
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/api
+        env:
+          # All required vars must be set so configs.Load() doesn't panic during build checks
+          DATABASE_URL: mysql://aiwatt:aiwatt@localhost:3306/aiwatt_test?parseTime=true
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret-32-chars-minimum-ok
+
+      - name: Install migrate CLI
+        run: go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+      - name: Run migrations
+        run: migrate -path scripts/migrations -database "mysql://aiwatt:aiwatt@localhost:3306/aiwatt_test?parseTime=true" up
+
+      - name: Run tests
+        run: go test -race -count=1 ./...
+        env:
+          DATABASE_URL: mysql://aiwatt:aiwatt@localhost:3306/aiwatt_test?parseTime=true
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret-32-chars-minimum-ok
+          APP_ENV: test
+          XDC_RPC_URL: https://erpc.apothem.network
+          XDC_CHAIN_ID: '51'
+          ALLOWED_ORIGINS: '*'
+          # Dummy key (scalar 1) — allows TxManager to initialise without a funded wallet.
+          # On-chain writes will fail at call time (no funds), not at startup.
+          VERIFLOW_SIGNER_PRIVATE_KEY: '0x0000000000000000000000000000000000000000000000000000000000000001'
+          # Staging contract addresses — real reads work; writes require funded wallet
+          WATT_USD_PROXY_ADDRESS: '0x974B2bd650c88D290469a471DeB1Ee6aC55AD2d9'
+          SWATT_USD_PROXY_ADDRESS: '0x08c14aCc5547f03fC523453e005A243C50A7aa94'
+          MINT_ENGINE_PROXY_ADDRESS: '0x37a1d3b072af3055993215DB82e3832dA2d10AEd'
+          ASSET_REGISTRY_PROXY_ADDRESS: '0x0000000000000000000000000000000000000000'
+          OCNFT_PROXY_ADDRESS: '0x0000000000000000000000000000000000000000'
+          HEALTH_ATTESTATION_PROXY_ADDRESS: '0x0000000000000000000000000000000000000000'
+          LENDING_POOL_PROXY_ADDRESS: '0x0000000000000000000000000000000000000000'
+          WEV_QUEUE_PROXY_ADDRESS: '0x0000000000000000000000000000000000000000'
+
+  # ── Contracts ────────────────────────────────────────────────────────────────
+  contracts:
+    name: Contracts — compile + test (258 tests)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Run tests
+        run: npx hardhat test
+
+  # ── Docker build check ───────────────────────────────────────────────────────
+  docker:
+    name: Backend — Docker build
+    runs-on: ubuntu-22.04
+    needs: [backend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --tag ghcr.io/neurowatt/aiwatt-backend:ci-${{ github.sha }} \
+            ./backend

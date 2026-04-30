@@ -1,0 +1,24 @@
+# air — hot-reload config for AI WATT backend
+# Docs: https://github.com/cosmtrek/air
+
+[build]
+  cmd     = "go build -o ./tmp/main ./cmd/api"
+  bin     = "./tmp/main"
+  delay   = 1000          # ms to wait after a file change before rebuilding
+  exclude_dir = ["tmp", "vendor", "scripts"]
+  include_ext = ["go"]
+  kill_delay  = "2s"
+  log         = "build-errors.log"
+  send_interrupt = true
+
+[log]
+  time = false
+
+[color]
+  main    = "magenta"
+  watcher = "cyan"
+  build   = "yellow"
+  runner  = "green"
+
+[misc]
+  clean_on_exit = true

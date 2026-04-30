@@ -1,0 +1,195 @@
+name: Deploy — Production (XDC Mainnet)
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'   # e.g. v1.0.0, v2.3.1
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/neurowatt/aiwatt-backend
+
+jobs:
+  # ── Full CI gate ─────────────────────────────────────────────────────────────
+  ci:
+    name: CI gate (full suite)
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  # ── Build & push production image ────────────────────────────────────────────
+  build-backend:
+    name: Build + push backend image (prod)
+    runs-on: ubuntu-22.04
+    needs: [ci]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Build frontend (production) ───────────────────────────────────────────────
+  build-frontend:
+    name: Build frontend (production)
+    runs-on: ubuntu-22.04
+    needs: [ci]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build -- --mode production
+        env:
+          VITE_ENV: production
+          VITE_CHAIN_ID: '50'
+          VITE_RPC_URL: https://rpc.xdcrpc.com
+          VITE_API_URL: https://api.aiwatt.io
+          VITE_WALLETCONNECT_PROJECT_ID: ${{ secrets.VITE_WALLETCONNECT_PROJECT_ID }}
+          # Production mainnet contract addresses (fill after mainnet deploy)
+          VITE_USDC_ADDRESS: ${{ secrets.PROD_USDC_ADDRESS }}
+          VITE_USDT_ADDRESS: ${{ secrets.PROD_USDT_ADDRESS }}
+          VITE_WATT_ADDRESS: ${{ secrets.PROD_WATT_ADDRESS }}
+          VITE_SWATT_ADDRESS: ${{ secrets.PROD_SWATT_ADDRESS }}
+          VITE_MINT_ENGINE_ADDRESS: ${{ secrets.PROD_MINT_ENGINE_ADDRESS }}
+          VITE_LENDING_POOL_ADDRESS: ${{ secrets.PROD_LENDING_POOL_ADDRESS }}
+          VITE_WEV_QUEUE_ADDRESS: ${{ secrets.PROD_WEV_QUEUE_ADDRESS }}
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-production-${{ github.ref_name }}
+          path: frontend/dist/
+
+  # ── Manual approval gate ──────────────────────────────────────────────────────
+  # Configure the "production" environment in GitHub → Settings → Environments
+  # with "Required reviewers" to require a human to approve before this job runs.
+  deploy-backend:
+    name: Deploy backend → production VPS
+    runs-on: ubuntu-22.04
+    needs: [build-backend]
+    environment: production    # ← requires manual approval in GitHub UI
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install migrate CLI
+        run: go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+      - name: Run migrations on production DB
+        run: migrate -path backend/scripts/migrations -database "${{ secrets.PROD_DB_URL }}" up
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ${{ env.IMAGE }}:latest
+            docker stop aiwatt-api 2>/dev/null || true
+            docker rm   aiwatt-api 2>/dev/null || true
+            docker run -d \
+              --name aiwatt-api \
+              --restart unless-stopped \
+              --env-file /opt/aiwatt/production.env \
+              -p 8080:8080 \
+              ${{ env.IMAGE }}:latest
+            docker image prune -f
+
+  deploy-frontend:
+    name: Deploy frontend → production
+    runs-on: ubuntu-22.04
+    needs: [build-frontend, deploy-backend]
+    environment: production
+
+    steps:
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-production-${{ github.ref_name }}
+          path: dist/
+
+      - name: Deploy via rsync
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avzr --delete
+          path: dist/
+          remote_path: /var/www/aiwatt.io/
+          remote_host: ${{ secrets.PROD_SSH_HOST }}
+          remote_user: ${{ secrets.PROD_SSH_USER }}
+          remote_key: ${{ secrets.PROD_SSH_KEY }}
+
+  # ── Health check ─────────────────────────────────────────────────────────────
+  health-check:
+    name: Health check (production)
+    runs-on: ubuntu-22.04
+    needs: [deploy-backend, deploy-frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: API health check
+        run: |
+          for i in {1..15}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.aiwatt.io/api/v1/vault/stats 2>/dev/null || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            [ "$STATUS" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "Production health check failed" && exit 1
+
+      - name: Frontend health check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://aiwatt.io)
+          echo "Frontend HTTP $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}

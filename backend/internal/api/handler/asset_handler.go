@@ -89,13 +89,13 @@ func (h *AssetHandler) GetByID(c *gin.Context) {
 // @Summary Get current health score for an asset
 // @Tags assets
 // @Produce json
-// @Param assetId path string true "Asset ID"
+// @Param id path string true "Asset ID"
 // @Success 200 {object} response.Envelope{data=dto.HealthScoreResponse}
 // @Failure 404 {object} response.Envelope
 // @Security BearerAuth
-// @Router /api/v1/assets/{assetId}/health [get]
+// @Router /api/v1/assets/{id}/health [get]
 func (h *AssetHandler) GetHealth(c *gin.Context) {
-	resp, err := h.assetService.GetHealth(c.Request.Context(), c.Param("assetId"))
+	resp, err := h.assetService.GetHealth(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return

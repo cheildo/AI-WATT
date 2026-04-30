@@ -72,7 +72,7 @@ func NewRouter(deps RouterDeps) *gin.Engine {
 			assets.GET("", deps.AssetHandler.List)
 			assets.POST("", middleware.RequireRole("admin", "curator"), deps.AssetHandler.Register)
 			assets.GET("/:id", deps.AssetHandler.GetByID)
-			assets.GET("/:assetId/health", deps.AssetHandler.GetHealth)
+			assets.GET("/:id/health", deps.AssetHandler.GetHealth)
 			assets.PATCH("/:id/ltv", middleware.RequireRole("admin"), deps.AssetHandler.UpdateLTV)
 		}
 

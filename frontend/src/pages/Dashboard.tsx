@@ -1,21 +1,45 @@
-import { PipelineCard } from '@/components/data/PipelineCard'
-import { DashCard }     from '@/components/data/DashCard'
-import { DataTable }    from '@/components/data/DataTable'
-import { StatusDot }    from '@/components/data/StatusDot'
-import { useUIStore }   from '@/stores/uiStore'
+import { useState, useEffect }  from 'react'
+import { PipelineCard }         from '@/components/data/PipelineCard'
+import { DashCard }             from '@/components/data/DashCard'
+import { DataTable }            from '@/components/data/DataTable'
+import { StatusDot }            from '@/components/data/StatusDot'
+import { Skeleton }             from '@/components/shared/Skeleton'
+import { useUIStore }           from '@/stores/uiStore'
 
 const TVL_DATA  = [0,8,12,18,22,30,45,60,82,110,150,200,240,310,315]
 const APR_DATA  = [4,4.5,5,5.8,6.2,7,8,9.5,10.2,11,11.8,12.4,12.8,12.81,12.81]
 
 const LOAN_ROWS = [
-  { asset: 'NVIDIA H200 [64]',       amount: '$84.2M',  util: '(8.9%)',  apr: '12.0%', contrib: '+1.07%', status: 'Active',  dot: '#2D5C3E' },
-  { asset: 'NVIDIA H100 [128]',      amount: '$153.8M', util: '(16.2%)', apr: '9.0%',  contrib: '+1.12%', status: 'Active',  dot: '#2D5C3E' },
-  { asset: 'NVIDIA B200 [32]',       amount: '$31.4M',  util: '(3.3%)',  apr: '15.0%', contrib: '+0.41%', status: 'Pre-PO', dot: '#B45309' },
-  { asset: 'Industrial Robot [24]',  amount: '$29.4M',  util: '(3.1%)',  apr: '12.0%', contrib: '+0.30%', status: 'Active',  dot: '#2D5C3E' },
+  { asset: 'NVIDIA H200 [64]',      amount: '$84.2M',  util: '(8.9%)',  apr: '12.0%', contrib: '+1.07%', status: 'Active',  dot: '#2D5C3E' },
+  { asset: 'NVIDIA H100 [128]',     amount: '$153.8M', util: '(16.2%)', apr: '9.0%',  contrib: '+1.12%', status: 'Active',  dot: '#2D5C3E' },
+  { asset: 'NVIDIA B200 [32]',      amount: '$31.4M',  util: '(3.3%)',  apr: '15.0%', contrib: '+0.41%', status: 'Pre-PO', dot: '#B45309' },
+  { asset: 'Industrial Robot [24]', amount: '$29.4M',  util: '(3.1%)',  apr: '12.0%', contrib: '+0.30%', status: 'Active',  dot: '#2D5C3E' },
 ]
+
+function TableSkeleton() {
+  return (
+    <div>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 border-b border-border last:border-b-0" style={{ padding: '14px 18px' }}>
+          <Skeleton width={160} height={12} />
+          <Skeleton width={90}  height={12} />
+          <Skeleton width={50}  height={12} />
+          <Skeleton width={55}  height={12} />
+          <Skeleton width={60}  height={12} />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export function Dashboard() {
   const { showToast } = useUIStore()
+  const [loansLoaded, setLoansLoaded] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoansLoaded(true), 900)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <div className="animate-fadeup">
@@ -73,23 +97,31 @@ export function Dashboard() {
             <path d="M4 3V2M7 3V2M10 3V2" stroke="#5A5646" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
           Loan Details
+          {!loansLoaded && (
+            <span className="ml-2 text-text-3 font-normal font-mono" style={{ fontSize: 10 }}>Loading…</span>
+          )}
         </div>
-        <DataTable
-          columns={[
-            { key: 'asset',  header: 'Asset',
-              render: (r) => <span className="font-sans text-text-1 font-medium text-xs">{String(r.asset)}</span> },
-            { key: 'amount', header: 'Amount (Utilization)',
-              render: (r) => <>{r.amount} <span className="text-text-3">{String(r.util)}</span></> },
-            { key: 'apr',    header: 'APR',
-              render: (r) => <span className="text-teal">{String(r.apr)}</span> },
-            { key: 'contrib', header: 'Contribution',
-              render: (r) => <span className="text-teal">{String(r.contrib)}</span> },
-            { key: 'status', header: 'Status',
-              render: (r) => <StatusDot color={String(r.dot)} label={String(r.status)} /> },
-          ]}
-          rows={LOAN_ROWS as unknown as Record<string, unknown>[]}
-          onRowClick={(r) => showToast(`${r.asset} — Engine 2`)}
-        />
+
+        {loansLoaded ? (
+          <DataTable
+            columns={[
+              { key: 'asset',   header: 'Asset',
+                render: (r) => <span className="font-sans text-text-1 font-medium text-xs">{String(r.asset)}</span> },
+              { key: 'amount',  header: 'Amount (Utilization)',
+                render: (r) => <>{r.amount} <span className="text-text-3">{String(r.util)}</span></> },
+              { key: 'apr',     header: 'APR',
+                render: (r) => <span className="text-teal">{String(r.apr)}</span> },
+              { key: 'contrib', header: 'Contribution',
+                render: (r) => <span className="text-teal">{String(r.contrib)}</span> },
+              { key: 'status',  header: 'Status',
+                render: (r) => <StatusDot color={String(r.dot)} label={String(r.status)} /> },
+            ]}
+            rows={LOAN_ROWS as unknown as Record<string, unknown>[]}
+            onRowClick={(r) => showToast(`${r.asset} — Engine 2`)}
+          />
+        ) : (
+          <TableSkeleton />
+        )}
       </div>
     </div>
   )

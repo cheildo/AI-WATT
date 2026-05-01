@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 
-const BASE = import.meta.env.VITE_BACKEND_URL ?? ''
+const BASE = import.meta.env.VITE_API_URL ?? ''
 
 async function fetchPortfolio(address: string) {
   const res = await fetch(`${BASE}/api/v1/loans?borrower=${address}`)

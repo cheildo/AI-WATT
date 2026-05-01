@@ -1,7 +1,42 @@
+import { useAccount, useDisconnect } from 'wagmi'
 import { NavIcon } from './NavIcon'
+import { fmtAddr } from '@/lib/formatters'
 
 function Sep() {
   return <div className="bg-border my-[6px]" style={{ width: 32, height: 1 }} />
+}
+
+function WalletFooter() {
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
+
+  if (!isConnected || !address) return null
+
+  return (
+    <>
+      <Sep />
+      <div className="flex flex-col items-center" style={{ padding: '4px 0 2px' }}>
+        {/* Green connected dot */}
+        <div
+          style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: '#0A7068',
+            boxShadow: '0 0 0 2px #EAF5F3',
+            marginBottom: 4,
+          }}
+        />
+        {/* Truncated address */}
+        <button
+          onClick={() => disconnect()}
+          title={`Connected: ${address}\nClick to disconnect`}
+          className="font-mono text-text-3 hover:text-text-1 cursor-pointer transition-colors text-center leading-tight"
+          style={{ fontSize: 7, background: 'none', border: 'none', padding: 0, wordBreak: 'break-all', maxWidth: 44 }}
+        >
+          {fmtAddr(address)}
+        </button>
+      </div>
+    </>
+  )
 }
 
 export function Sidebar() {
@@ -85,6 +120,18 @@ export function Sidebar() {
           <path d="M6 6h4M6 9h4M6 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </NavIcon>
+
+      {/* Faucet — testnet only */}
+      <NavIcon to="/faucet" tip="Testnet Faucet">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M6 2h4M7 2v3L5 8c-.6.8-1 1.8-1 3a4 4 0 008 0c0-1.2-.4-2.2-1-3L9 5V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="8" cy="11" r="1.5" fill="currentColor" opacity=".4"/>
+        </svg>
+      </NavIcon>
+
+      {/* Wallet state — only shown when connected */}
+      <div className="flex-1" />
+      <WalletFooter />
     </div>
   )
 }

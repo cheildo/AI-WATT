@@ -10,6 +10,8 @@ import { Dashboard }  from '@/pages/Dashboard'
 import { Veriflow }   from '@/pages/Veriflow'
 import { Portfolio }  from '@/pages/Portfolio'
 import { Governance } from '@/pages/Governance'
+import { Docs }       from '@/pages/Docs'
+import { Faucet }     from '@/pages/Faucet'
 
 export function App() {
   return (
@@ -30,6 +32,8 @@ export function App() {
             <Route path="/veriflow"   element={<Veriflow />} />
             <Route path="/portfolio"  element={<Portfolio />} />
             <Route path="/governance" element={<Governance />} />
+            <Route path="/docs"       element={<Docs />} />
+            <Route path="/faucet"     element={<Faucet />} />
           </Routes>
         </main>
       </div>

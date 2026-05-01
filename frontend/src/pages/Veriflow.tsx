@@ -1,6 +1,8 @@
-import { AttestationStrip } from '@/components/veriflow/AttestationStrip'
-import { HealthCard }        from '@/components/veriflow/HealthCard'
-import { useUIStore }        from '@/stores/uiStore'
+import { useState, useEffect }   from 'react'
+import { AttestationStrip }      from '@/components/veriflow/AttestationStrip'
+import { HealthCard }            from '@/components/veriflow/HealthCard'
+import { Skeleton }              from '@/components/shared/Skeleton'
+import { useUIStore }            from '@/stores/uiStore'
 
 const ASSETS = [
   {
@@ -60,8 +62,37 @@ const ASSETS = [
   },
 ]
 
+function CardSkeleton() {
+  return (
+    <div className="bg-white border border-border" style={{ borderRadius: 4, padding: '16px' }}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton width={120} height={11} />
+          <Skeleton width={80}  height={9} />
+        </div>
+        <Skeleton width={36} height={36} radius={18} />
+      </div>
+      <Skeleton width="100%" height={3} radius={2} className="mb-4" />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="border border-border rounded" style={{ padding: '8px', borderRadius: 3 }}>
+            <Skeleton width={50}  height={9}  className="mb-1" />
+            <Skeleton width={65}  height={11} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function Veriflow() {
   const { showToast } = useUIStore()
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 700)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <div className="animate-fadeup">
@@ -70,29 +101,36 @@ export function Veriflow() {
         lastAttestation="4 min ago"
         blockNumber="82,441,209"
       />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
-        {ASSETS.map((a) => (
-          <HealthCard
-            key={a.assetId}
-            assetId={a.assetId}
-            engineType={a.engineType}
-            name={a.name}
-            location={a.location}
-            healthScore={a.healthScore}
-            metrics={a.metrics}
-            isPending={a.isPending}
-            onClick={() => showToast(a.toast)}
-          />
-        ))}
-        <HealthCard
-          assetId=""
-          engineType={0}
-          name=""
-          location=""
-          healthScore={0}
-          metrics={[]}
-          isPlaceholder
-        />
+        {loaded ? (
+          <>
+            {ASSETS.map((a) => (
+              <HealthCard
+                key={a.assetId}
+                assetId={a.assetId}
+                engineType={a.engineType}
+                name={a.name}
+                location={a.location}
+                healthScore={a.healthScore}
+                metrics={a.metrics}
+                isPending={a.isPending}
+                onClick={() => showToast(a.toast)}
+              />
+            ))}
+            <HealthCard
+              assetId=""
+              engineType={0}
+              name=""
+              location=""
+              healthScore={0}
+              metrics={[]}
+              isPlaceholder
+            />
+          </>
+        ) : (
+          Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
+        )}
       </div>
     </div>
   )

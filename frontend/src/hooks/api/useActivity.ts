@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
-const BASE = import.meta.env.VITE_BACKEND_URL ?? ''
+const BASE = import.meta.env.VITE_API_URL ?? ''
 
 async function fetchActivity(page: number) {
   const res = await fetch(`${BASE}/api/v1/events?page=${page}&limit=20`)

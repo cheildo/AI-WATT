@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { fmtAddr } from '@/lib/formatters'
+import { useWalletStore } from '@/stores/walletStore'
+import { useUIStore }     from '@/stores/uiStore'
 
 function useCountUp(target: number, duration: number, delay = 300) {
   const [val, setVal] = useState(0)
@@ -23,14 +25,39 @@ function useCountUp(target: number, duration: number, delay = 300) {
 
 export function TopBar() {
   const { address, isConnected } = useAccount()
-  const { connect } = useConnect()
+  const { connect }    = useConnect()
   const { disconnect } = useDisconnect()
+  const { jwt, setJwt } = useWalletStore()
+  const { showToast }   = useUIStore()
+
+  const [signing, setSigning] = useState(false)
 
   const tvl    = useCountUp(315.2,  1800, 300)
   const apr    = useCountUp(12.81,  1400, 300)
   const expApr = useCountUp(15.40,  1600, 300)
   const wfv    = useCountUp(1.0000, 1200, 300)
   const sfv    = useCountUp(1.0418, 1500, 300)
+
+  // Clear JWT when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) setJwt(null)
+  }, [isConnected, setJwt])
+
+  const handleSignIn = async () => {
+    setSigning(true)
+    // Simulate EIP-191 sign + backend auth (1s round-trip)
+    await new Promise((r) => setTimeout(r, 1000))
+    setJwt('mock.jwt.token')
+    setSigning(false)
+    showToast('Wallet authenticated — session active', 'success')
+  }
+
+  const handleDisconnect = () => {
+    setJwt(null)
+    disconnect()
+  }
+
+  const isAuthenticated = isConnected && Boolean(jwt)
 
   return (
     <div
@@ -58,22 +85,18 @@ export function TopBar() {
 
       {/* Stats bar */}
       <div className="flex items-center flex-1 h-full border-r border-border" style={{ padding: '0 20px' }}>
-        {/* TVL */}
         <div className="flex items-center gap-[10px] h-full border-r border-border" style={{ padding: '0 18px 0 0' }}>
           <div className="text-[10px] text-text-3 uppercase tracking-[.08em] font-medium">TVL</div>
           <div className="font-mono text-[13px] font-medium text-gold">${tvl.toFixed(1)}M</div>
         </div>
-        {/* APR */}
         <div className="flex items-center gap-[10px] h-full border-r border-border" style={{ padding: '0 18px' }}>
           <div className="text-[10px] text-text-3 uppercase tracking-[.08em] font-medium">APR</div>
           <div className="font-mono text-[13px] font-medium text-teal">{apr.toFixed(2)}%</div>
         </div>
-        {/* Exp APR */}
         <div className="flex items-center gap-[10px] h-full border-r border-border" style={{ padding: '0 18px' }}>
           <div className="text-[10px] text-text-3 uppercase tracking-[.08em] font-medium">Exp. APR</div>
           <div className="font-mono text-[13px] font-medium text-teal">{expApr.toFixed(2)}%</div>
         </div>
-        {/* Fair value */}
         <div className="flex items-center gap-[10px] h-full" style={{ padding: '0 18px' }}>
           <div className="text-[10px] text-text-3 uppercase tracking-[.08em] font-medium">Fair Value · WATT</div>
           <div className="flex items-center gap-2">
@@ -90,20 +113,46 @@ export function TopBar() {
       </div>
 
       {/* Right: chain badge + wallet */}
-      <div className="flex items-center gap-[10px]" style={{ paddingLeft: 16 }}>
+      <div className="flex items-center gap-[8px]" style={{ paddingLeft: 16 }}>
+        {/* Chain badge */}
         <div className="flex items-center gap-[5px] border border-border rounded bg-bg font-mono text-[11px] text-text-2" style={{ padding: '5px 10px' }}>
           <div className="rounded-full" style={{ width: 5, height: 5, background: '#4CAF50', boxShadow: '0 0 0 2px #E8F5E9' }} />
           XDC Network
         </div>
+
         {isConnected && address ? (
-          <button
-            onClick={() => disconnect()}
-            className="flex items-center gap-[7px] border border-border rounded bg-bg font-mono text-[12px] text-text-2 cursor-pointer"
-            style={{ padding: '5px 12px' }}
-          >
-            <div className="rounded-full" style={{ width: 18, height: 18, background: 'linear-gradient(135deg,#9A6B0A,#0A7068)' }} />
-            {fmtAddr(address)}
-          </button>
+          <div className="flex items-center gap-[6px]">
+            {/* Address pill */}
+            <button
+              onClick={handleDisconnect}
+              title="Click to disconnect"
+              className="flex items-center gap-[7px] border border-border rounded bg-bg font-mono text-[12px] text-text-2 cursor-pointer hover:border-border-strong transition-colors"
+              style={{ padding: '5px 12px' }}
+            >
+              {/* Auth status dot */}
+              <div
+                style={{
+                  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                  background: isAuthenticated ? '#0A7068' : '#D8D3C6',
+                  boxShadow: isAuthenticated ? '0 0 0 2px #EAF5F3' : 'none',
+                  transition: 'background 0.3s, box-shadow 0.3s',
+                }}
+              />
+              {fmtAddr(address)}
+            </button>
+
+            {/* Sign-in chip — only shown when not yet authenticated */}
+            {!isAuthenticated && (
+              <button
+                onClick={handleSignIn}
+                disabled={signing}
+                className="border border-border-strong rounded font-sans font-semibold text-text-2 cursor-pointer hover:bg-bg-2 hover:text-text-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ padding: '5px 11px', fontSize: 11 }}
+              >
+                {signing ? 'Signing…' : 'Sign In'}
+              </button>
+            )}
+          </div>
         ) : (
           <button
             onClick={() => connect({ connector: injected() })}

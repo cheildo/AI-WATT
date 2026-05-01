@@ -24,10 +24,11 @@ const redisLastBlockKey = "indexer:last_block"
 // On startup it backfills from the last indexed block stored in Redis, then
 // switches to a live subscription.
 type EventIndexer struct {
-	client    *BlockchainClient
-	eventRepo repository.EventRepo
-	rdb       *redis.Client
-	logger    *zap.Logger
+	client     *BlockchainClient
+	eventRepo  repository.EventRepo
+	rdb        *redis.Client
+	logger     *zap.Logger
+	startBlock uint64 // first block to index when no Redis entry exists
 
 	// pre-built filterers — one per contract
 	assetRegistryF    *contracts.AssetRegistryFilterer
@@ -41,11 +42,14 @@ type EventIndexer struct {
 }
 
 // NewEventIndexer constructs an EventIndexer.
+// startBlock sets the first block to index when no prior state exists in Redis.
+// Pass 0 to start from genesis, or the contract deployment block to skip old history.
 func NewEventIndexer(
 	client *BlockchainClient,
 	eventRepo repository.EventRepo,
 	rdb *redis.Client,
 	logger *zap.Logger,
+	startBlock uint64,
 ) (*EventIndexer, error) {
 	eth := client.Eth()
 
@@ -87,6 +91,7 @@ func NewEventIndexer(
 		eventRepo:          eventRepo,
 		rdb:                rdb,
 		logger:             logger,
+		startBlock:         startBlock,
 		assetRegistryF:     assetRegF,
 		lendingPoolF:       lpF,
 		wattUSDf:           wusdF,
@@ -98,18 +103,28 @@ func NewEventIndexer(
 	}, nil
 }
 
+// pollInterval is how often the indexer polls for new blocks when the RPC
+// endpoint does not support WebSocket subscriptions.
+const pollInterval = 15 * time.Second
+
 // Start backfills historical events then starts a live log subscription.
-// Blocks until ctx is cancelled.
+// If the RPC endpoint does not support subscriptions (HTTP-only), it falls
+// back to block polling instead. Blocks until ctx is cancelled.
 func (idx *EventIndexer) Start(ctx context.Context) error {
 	if err := idx.backfill(ctx); err != nil {
 		idx.logger.Error("EventIndexer: backfill failed", zap.Error(err))
-		// Non-fatal — continue to live subscription.
+		// Non-fatal — continue to live subscription / polling.
 	}
 
 	query := ethereum.FilterQuery{Addresses: idx.client.AllAddresses()}
 	logsCh := make(chan types.Log, 256)
 	sub, err := idx.client.Eth().SubscribeFilterLogs(ctx, query, logsCh)
 	if err != nil {
+		if strings.Contains(err.Error(), "notifications not supported") {
+			idx.logger.Info("EventIndexer: RPC does not support subscriptions — falling back to polling",
+				zap.Duration("interval", pollInterval))
+			return idx.poll(ctx)
+		}
 		return fmt.Errorf("EventIndexer.Start: subscribe: %w", err)
 	}
 	idx.logger.Info("EventIndexer: live subscription active")
@@ -127,7 +142,31 @@ func (idx *EventIndexer) Start(ctx context.Context) error {
 	}
 }
 
-// backfill fetches historical logs from last indexed block to the chain head.
+// poll periodically fetches new logs from the chain head. Used when the RPC
+// endpoint is HTTP-only and does not support eth_subscribe.
+func (idx *EventIndexer) poll(ctx context.Context) error {
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := idx.backfill(ctx); err != nil {
+				idx.logger.Error("EventIndexer: poll backfill failed", zap.Error(err))
+				// Non-fatal — retry on next tick.
+			}
+		}
+	}
+}
+
+// backfillChunkSize is the maximum number of blocks fetched per FilterLogs call.
+// Keeping this small avoids RPC timeouts on public nodes.
+const backfillChunkSize uint64 = 2000
+
+// backfill fetches historical logs from last indexed block to the chain head,
+// chunked to avoid RPC timeouts on large ranges.
 func (idx *EventIndexer) backfill(ctx context.Context) error {
 	fromBlock, err := idx.lastIndexedBlock(ctx)
 	if err != nil {
@@ -142,26 +181,39 @@ func (idx *EventIndexer) backfill(ctx context.Context) error {
 		return nil
 	}
 
-	from := big.NewInt(int64(fromBlock + 1))
-	to := big.NewInt(int64(head))
-	query := ethereum.FilterQuery{
-		FromBlock: from,
-		ToBlock:   to,
-		Addresses: idx.client.AllAddresses(),
+	addrs := idx.client.AllAddresses()
+	start := fromBlock + 1
+	for start <= head {
+		end := start + backfillChunkSize - 1
+		if end > head {
+			end = head
+		}
+
+		query := ethereum.FilterQuery{
+			FromBlock: big.NewInt(int64(start)),
+			ToBlock:   big.NewInt(int64(end)),
+			Addresses: addrs,
+		}
+		logs, err := idx.client.Eth().FilterLogs(ctx, query)
+		if err != nil {
+			return fmt.Errorf("EventIndexer.backfill: filter logs: %w", err)
+		}
+		for _, l := range logs {
+			idx.processLog(ctx, l)
+		}
+		if err := idx.setLastIndexedBlock(ctx, end); err != nil {
+			return fmt.Errorf("EventIndexer.backfill: set last block: %w", err)
+		}
+		if start == fromBlock+1 {
+			idx.logger.Info("EventIndexer: backfilling",
+				zap.Uint64("from", start),
+				zap.Uint64("to", head),
+				zap.Int("first_chunk_logs", len(logs)),
+			)
+		}
+		start = end + 1
 	}
-	logs, err := idx.client.Eth().FilterLogs(ctx, query)
-	if err != nil {
-		return fmt.Errorf("EventIndexer.backfill: filter logs: %w", err)
-	}
-	idx.logger.Info("EventIndexer: backfilling",
-		zap.Uint64("from", fromBlock+1),
-		zap.Uint64("to", head),
-		zap.Int("logs", len(logs)),
-	)
-	for _, l := range logs {
-		idx.processLog(ctx, l)
-	}
-	return idx.setLastIndexedBlock(ctx, head)
+	return nil
 }
 
 // processLog dispatches a raw log to the appropriate parser based on the
@@ -393,7 +445,8 @@ func (idx *EventIndexer) parseWEVQueueLog(log types.Log) (string, map[string]any
 func (idx *EventIndexer) lastIndexedBlock(ctx context.Context) (uint64, error) {
 	val, err := idx.rdb.Get(ctx, redisLastBlockKey).Uint64()
 	if err == redis.Nil {
-		return 0, nil
+		// No prior state — start from the configured start block.
+		return idx.startBlock, nil
 	}
 	if err != nil {
 		return 0, fmt.Errorf("EventIndexer.lastIndexedBlock: redis get: %w", err)

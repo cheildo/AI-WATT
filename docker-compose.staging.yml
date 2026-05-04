@@ -1,0 +1,108 @@
+# ── Staging deploy — ai-watt VM (34.28.184.105) ──────────────────────────────
+# MySQL and Redis are managed by separate compose stacks on this VM.
+# This file only runs the app services and joins their existing networks.
+#
+# Prerequisites on the VM:
+#   ~/mysql/  must be up  → provides mysql-net + mysql container
+#   ~/redis/  must be up  → provides redis-net  + redis container
+#
+# First-time setup:
+#   cp .env.staging.example .env
+#   # Fill in MYSQL_PASSWORD (from ~/mysql/.env) and REDIS_PASSWORD (~/redis/.env)
+#   # Set JWT_SECRET and VERIFLOW_SIGNER_PRIVATE_KEY manually — never commit them
+#   docker compose -f docker-compose.staging.yml up -d --build
+#
+# Redeploy (code change):
+#   docker compose -f docker-compose.staging.yml up -d --build --no-deps frontend backend
+# ─────────────────────────────────────────────────────────────────────────────
+
+networks:
+  mysql-net:
+    external: true
+  redis-net:
+    external: true
+  aiwatt-app:
+    driver: bridge
+
+services:
+
+  # ── Migrations (one-shot; backend waits for exit 0) ───────────────────────
+  migrator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migrator
+    container_name: aiwatt-migrator
+    command:
+      - "-database=mysql://appuser:${MYSQL_PASSWORD}@tcp(mysql:3306)/aiwatt?parseTime=true"
+      - "up"
+    restart: on-failure:5
+    networks:
+      - mysql-net
+
+  # ── Backend API ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api
+    container_name: aiwatt-backend
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      APP_ENV: staging
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://staging.neurowatt.services}
+      DATABASE_URL: mysql://appuser:${MYSQL_PASSWORD}@tcp(mysql:3306)/aiwatt?parseTime=true
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      XDC_RPC_URL: ${XDC_RPC_URL:-wss://ws.apothem.network}
+      XDC_CHAIN_ID: ${XDC_CHAIN_ID:-51}
+      XDC_INDEXER_START_BLOCK: ${XDC_INDEXER_START_BLOCK:-0}
+      VERIFLOW_SIGNER_PRIVATE_KEY: ${VERIFLOW_SIGNER_PRIVATE_KEY:-0x}
+      WATT_USD_PROXY_ADDRESS: ${WATT_USD_PROXY_ADDRESS:-0x}
+      SWATT_USD_PROXY_ADDRESS: ${SWATT_USD_PROXY_ADDRESS:-0x}
+      MINT_ENGINE_PROXY_ADDRESS: ${MINT_ENGINE_PROXY_ADDRESS:-0x}
+      ASSET_REGISTRY_PROXY_ADDRESS: ${ASSET_REGISTRY_PROXY_ADDRESS:-0x}
+      OCNFT_PROXY_ADDRESS: ${OCNFT_PROXY_ADDRESS:-0x}
+      HEALTH_ATTESTATION_PROXY_ADDRESS: ${HEALTH_ATTESTATION_PROXY_ADDRESS:-0x}
+      LENDING_POOL_PROXY_ADDRESS: ${LENDING_POOL_PROXY_ADDRESS:-0x}
+      WEV_QUEUE_PROXY_ADDRESS: ${WEV_QUEUE_PROXY_ADDRESS:-0x}
+      BITGO_API_KEY: ${BITGO_API_KEY:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      KYC_PROVIDER_API_KEY: ${KYC_PROVIDER_API_KEY:-}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - mysql-net
+      - redis-net
+      - aiwatt-app
+
+  # ── Frontend (nginx + React SPA) ─────────────────────────────────────────
+  # Bound to 127.0.0.1:3000 — Cloudflare tunnel routes
+  # staging.neurowatt.services → http://localhost:3000
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_ENV: staging
+        VITE_CHAIN_ID: ${VITE_CHAIN_ID:-51}
+        VITE_RPC_URL: ${VITE_RPC_URL:-https://erpc.apothem.network}
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID}
+        VITE_WATT_ADDRESS: ${VITE_WATT_ADDRESS:-0x}
+        VITE_SWATT_ADDRESS: ${VITE_SWATT_ADDRESS:-0x}
+        VITE_MINT_ENGINE_ADDRESS: ${VITE_MINT_ENGINE_ADDRESS:-0x}
+        VITE_LENDING_POOL_ADDRESS: ${VITE_LENDING_POOL_ADDRESS:-0x}
+        VITE_WEV_QUEUE_ADDRESS: ${VITE_WEV_QUEUE_ADDRESS:-0x}
+        VITE_USDC_ADDRESS: ${VITE_USDC_ADDRESS:-0x}
+        VITE_USDT_ADDRESS: ${VITE_USDT_ADDRESS:-0x}
+    container_name: aiwatt-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      - backend
+    networks:
+      - aiwatt-app

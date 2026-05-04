@@ -42,7 +42,7 @@ cp .env.example .env
 |---|---|
 | `ASSET_ID` | UUID of the hardware asset — assigned during onboarding |
 | `HMAC_KEY` | Shared secret for HMAC-SHA256 signing (32+ random bytes) |
-| `BACKEND_URL` | Base URL of the AI WATT API (e.g. `https://api.aiwatt.io`) |
+| `BACKEND_URL` | Base URL of the AI WATT API — staging: `https://staging.neurowatt.services` |
 
 ---
 

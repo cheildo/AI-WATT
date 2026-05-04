@@ -20,7 +20,8 @@ All contracts use the **UUPS upgradeable proxy pattern**. No constructors — in
 ```bash
 npm install
 cp .env.example .env
-# Fill in DEPLOYER_PRIVATE_KEY for testnet deploy
+# Fill in DEPLOYER_PRIVATE_KEY for testnet/mainnet deploys
+# Never commit .env
 ```
 
 ---
@@ -40,12 +41,14 @@ npm run coverage
 # Start local Hardhat node
 npm run node
 
-# Deploy to Apothem testnet
+# Deploy proxies (Apothem testnet)
 npm run deploy:apothem
 
-# Deploy to XDC mainnet
+# Deploy proxies (XDC mainnet)
 npm run deploy:mainnet
 ```
+
+After deploying, copy the printed proxy addresses into `backend/.env.local` (or the VM's `.env`) under `WATT_USD_PROXY_ADDRESS`, `MINT_ENGINE_PROXY_ADDRESS`, etc., and into the corresponding `VITE_*_ADDRESS` frontend vars. Then rebuild the affected containers.
 
 ---
 

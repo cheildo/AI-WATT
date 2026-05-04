@@ -1,31 +1,39 @@
-version: "3.9"
+networks:
+  aiwatt:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
 
 services:
+
+  # ── MySQL 8 ───────────────────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: aiwatt-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: aiwatt
       MYSQL_USER: aiwatt
-      MYSQL_PASSWORD: aiwatt
-    ports:
-      - "3306:3306"
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "aiwatt", "-paiwatt"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "aiwatt", "--password=${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
+    networks:
+      - aiwatt
 
+  # ── Redis 7 ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: aiwatt-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,26 +41,86 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - aiwatt
 
+  # ── Migrations (runs once, exits 0, then backend starts) ─────────────────────
+  migrator:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: migrator
+    container_name: aiwatt-migrator
+    command:
+      - "-database=mysql://aiwatt:${MYSQL_PASSWORD}@tcp(mysql:3306)/aiwatt?parseTime=true"
+      - "up"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: on-failure:5
+    networks:
+      - aiwatt
+
+  # ── Backend API ───────────────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: api
     container_name: aiwatt-backend
     restart: unless-stopped
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
+    environment:
+      PORT: 8080
+      APP_ENV: ${APP_ENV:-production}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      DATABASE_URL: mysql://aiwatt:${MYSQL_PASSWORD}@tcp(mysql:3306)/aiwatt?parseTime=true
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      XDC_RPC_URL: ${XDC_RPC_URL}
+      XDC_CHAIN_ID: ${XDC_CHAIN_ID:-51}
+      VERIFLOW_SIGNER_PRIVATE_KEY: ${VERIFLOW_SIGNER_PRIVATE_KEY:-0x}
+      WATT_USD_PROXY_ADDRESS: ${WATT_USD_PROXY_ADDRESS:-0x}
+      SWATT_USD_PROXY_ADDRESS: ${SWATT_USD_PROXY_ADDRESS:-0x}
+      MINT_ENGINE_PROXY_ADDRESS: ${MINT_ENGINE_PROXY_ADDRESS:-0x}
+      ASSET_REGISTRY_PROXY_ADDRESS: ${ASSET_REGISTRY_PROXY_ADDRESS:-0x}
+      OCNFT_PROXY_ADDRESS: ${OCNFT_PROXY_ADDRESS:-0x}
+      HEALTH_ATTESTATION_PROXY_ADDRESS: ${HEALTH_ATTESTATION_PROXY_ADDRESS:-0x}
+      LENDING_POOL_PROXY_ADDRESS: ${LENDING_POOL_PROXY_ADDRESS:-0x}
+      WEV_QUEUE_PROXY_ADDRESS: ${WEV_QUEUE_PROXY_ADDRESS:-0x}
+      BITGO_API_KEY: ${BITGO_API_KEY:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      KYC_PROVIDER_API_KEY: ${KYC_PROVIDER_API_KEY:-}
     depends_on:
-      mysql:
-        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-    environment:
-      DATABASE_URL: mysql://aiwatt:aiwatt@mysql:3306/aiwatt?parseTime=true
-      REDIS_URL: redis://redis:6379/0
+    networks:
+      - aiwatt
 
-volumes:
-  mysql_data:
-  redis_data:
+  # ── Frontend (nginx serves SPA + proxies /api to backend) ────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_ENV: ${VITE_ENV:-production}
+        VITE_CHAIN_ID: ${VITE_CHAIN_ID:-51}
+        VITE_RPC_URL: ${VITE_RPC_URL:-https://erpc.apothem.network}
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_WALLETCONNECT_PROJECT_ID: ${VITE_WALLETCONNECT_PROJECT_ID}
+        VITE_WATT_ADDRESS: ${VITE_WATT_ADDRESS:-0x}
+        VITE_SWATT_ADDRESS: ${VITE_SWATT_ADDRESS:-0x}
+        VITE_MINT_ENGINE_ADDRESS: ${VITE_MINT_ENGINE_ADDRESS:-0x}
+        VITE_LENDING_POOL_ADDRESS: ${VITE_LENDING_POOL_ADDRESS:-0x}
+        VITE_WEV_QUEUE_ADDRESS: ${VITE_WEV_QUEUE_ADDRESS:-0x}
+        VITE_USDC_ADDRESS: ${VITE_USDC_ADDRESS:-0x}
+        VITE_USDT_ADDRESS: ${VITE_USDT_ADDRESS:-0x}
+    container_name: aiwatt-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - aiwatt

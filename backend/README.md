@@ -9,48 +9,83 @@ Golang API server for the AI WATT protocol.
 ## Prerequisites
 
 - Go 1.22+
-- MySQL 8 (or `docker-compose up -d` from repo root)
-- Redis 7 (or `docker-compose up -d` from repo root)
+- MySQL 8 and Redis 7 — either via Docker (see repo root) or Homebrew
 
 ---
 
-## Setup
+## Running with Docker (recommended)
+
+From the repo root:
 
 ```bash
 cp .env.example .env
-# Fill in JWT_SECRET, DATABASE_URL, REDIS_URL at minimum
+docker compose up -d --build
 ```
 
-### Run database migrations
+Migrations run automatically in the `aiwatt-migrator` container before the API starts.
+
+---
+
+## Running natively (Homebrew)
 
 ```bash
-# Install migrate CLI (once)
-go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+# Start services (if not already running)
+brew services start mysql
+/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf --daemonize yes
 
-# Apply all migrations
-migrate -path scripts/migrations \
-        -database "$DATABASE_URL" \
-        up
+cp .env.example .env.local      # already populated for local use
+
+# Apply migrations
+make migrate-up ENV=local
+
+# Start with hot-reload (uses air if installed, else go run)
+make dev ENV=local
 ```
 
-### Start the server
+API available at `http://localhost:8080`.
+
+---
+
+## Makefile targets
 
 ```bash
-go run ./cmd/api
-# API available at http://localhost:8080
-# Swagger UI at http://localhost:8080/swagger/index.html
+make dev             ENV=local      # start server (hot-reload)
+make build                          # compile binary → tmp/aiwatt-api
+make test                           # go test -race ./...
+make migrate-up      ENV=local      # apply all pending migrations
+make migrate-down    ENV=local      # roll back last migration
+make migrate-status  ENV=local      # show current schema version
+make migrate-force   ENV=local ARGS=9  # force version to N
+make lint                           # go vet + staticcheck
+make swag                           # regenerate Swagger docs
 ```
+
+The `ENV` flag selects the env file (e.g. `ENV=local` loads `.env.local`).
+
+---
+
+## Database migrations
+
+Migration files live in `scripts/migrations/`. Always use `make migrate-*` — never `GORM AutoMigrate` in production.
+
+```
+000001_create_users.up.sql / .down.sql
+000002_create_assets.up.sql / .down.sql
+...
+```
+
+Every migration requires a working `.down.sql`.
 
 ---
 
 ## Generate Swagger docs
 
 ```bash
-# Install swag CLI (once)
 go install github.com/swaggo/swag/cmd/swag@latest
-
-swag init -g cmd/api/main.go -o api/
+make swag
 ```
+
+Spec written to `api/openapi.yaml`. Run after any handler annotation change.
 
 ---
 
@@ -84,21 +119,22 @@ backend/
 Request → DTO → Handler → Service → Repository → Model → DB
 ```
 
-- Handlers never touch GORM directly
-- Services never write SQL
-- Repositories never contain business logic
+- Handlers bind input to a DTO, call service, map result to a response DTO
+- Services contain business logic only — no GORM, no `http.Request`
+- Repositories receive and return `models.*` — no DTOs, no business logic
 - Models are never returned as JSON — always mapped to a response DTO first
 
 ---
 
-## Running tests
+## Tests
 
 ```bash
-go test ./...
+make test             # all tests with race detector
+make test-verbose     # verbose output
 ```
 
 ---
 
 ## Environment variables
 
-See [.env.example](.env.example) for the full list.
+See [.env.example](.env.example) for the full list with descriptions.

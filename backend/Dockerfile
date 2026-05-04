@@ -1,5 +1,5 @@
 ## ── API build stage ──────────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /bin/aiwatt-api ./cmd/api
 
 ## ── Migrate build stage ──────────────────────────────────────────────────────
-FROM golang:1.22-alpine AS migrate-builder
+FROM golang:1.25-alpine AS migrate-builder
 
 ENV CGO_ENABLED=0
 RUN go install -tags 'mysql' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1
